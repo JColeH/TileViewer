@@ -40,17 +40,17 @@ const TILE_TYPES: TileType[] = [
   { name: 'Redwood / Dune',     background: '#782828', arc: '#DECAB0', image: 'Kat-Roger-6x6-arc-Redwood-Dune-230x230.jpg', subW: 2, subH: 2 },
   { name: 'Redwood / Sunbeam',  background: '#782828', arc: '#C89030', image: 'Kat-Roger-6x6-arc-Redwood-Sunbeam-2-230x230.jpg', subW: 2, subH: 2 },
   { name: 'Redwood / Surf',     background: '#782828', arc: '#486878', image: 'Kat-Roger-6x6-arc-Redwood-Surf-230x230.jpg', subW: 2, subH: 2 },
-  // ─── Rectangle tiles (1×2 sub-cells) — glaze texture + SVG arc ────────────
-  { name: 'Rect Birch / Denim',   background: '#EAE2D6', arc: '#9898A8', subW: 1, subH: 2, bgImage: 'glaze/Birch.jpg', arcImage: 'glaze/Denim.jpg' },
-  { name: 'Rect Denim / Birch',   background: '#9898A8', arc: '#EAE2D6', subW: 1, subH: 2, bgImage: 'glaze/Denim.jpg', arcImage: 'glaze/Birch.jpg' },
-  { name: 'Rect Basalt / Dune',   background: '#302828', arc: '#DECAB0', subW: 1, subH: 2, bgImage: 'glaze/Basalt.jpg', arcImage: 'glaze/Dune.jpg' },
-  { name: 'Rect Surf / Sunbeam',  background: '#486878', arc: '#C89030', subW: 1, subH: 2, bgImage: 'glaze/Surf.jpg', arcImage: 'glaze/Sunbeam.jpg' },
-  { name: 'Rect Redwood / Coral', background: '#782828', arc: '#C87858', subW: 1, subH: 2, bgImage: 'glaze/Redwood.jpg', arcImage: 'glaze/Coral.jpg' },
-  { name: 'Rect Storm / Birch',   background: '#888880', arc: '#EAE2D6', subW: 1, subH: 2, bgImage: 'glaze/storm.jpg', arcImage: 'glaze/Birch.jpg' },
-  { name: 'Rect Redwood / Surf',  background: '#782828', arc: '#486878', subW: 1, subH: 2, bgImage: 'glaze/Redwood.jpg', arcImage: 'glaze/Surf.jpg' },
-  { name: 'Rect Dune / Birch',    background: '#DECAB0', arc: '#EAE2D6', subW: 1, subH: 2, bgImage: 'glaze/Dune.jpg', arcImage: 'glaze/Birch.jpg' },
-  { name: 'Rect Sunbeam / Denim', background: '#C89030', arc: '#9898A8', subW: 1, subH: 2, bgImage: 'glaze/Sunbeam.jpg', arcImage: 'glaze/Denim.jpg' },
-  { name: 'Rect Birch / Dune',    background: '#EAE2D6', arc: '#DECAB0', subW: 1, subH: 2, bgImage: 'glaze/Birch.jpg', arcImage: 'glaze/Dune.jpg' },
+  // ─── Rectangle tiles (solid glazes) ─────────────────────────────────────────
+  { name: 'Rect Birch',    background: '#EAE2D6', arc: '#EAE2D6', subW: 1, subH: 2, bgImage: 'glaze/Birch.jpg' },
+  { name: 'Rect Dune',     background: '#DECAB0', arc: '#DECAB0', subW: 1, subH: 2, bgImage: 'glaze/Dune.jpg' },
+  { name: 'Rect Coral',    background: '#C87858', arc: '#C87858', subW: 1, subH: 2, bgImage: 'glaze/Coral.jpg' },
+  { name: 'Rect Sunbeam',  background: '#C89030', arc: '#C89030', subW: 1, subH: 2, bgImage: 'glaze/Sunbeam.jpg' },
+  { name: 'Rect Redwood',  background: '#782828', arc: '#782828', subW: 1, subH: 2, bgImage: 'glaze/Redwood.jpg' },
+  { name: 'Rect Denim',    background: '#9898A8', arc: '#9898A8', subW: 1, subH: 2, bgImage: 'glaze/Denim.jpg' },
+  { name: 'Rect Storm',    background: '#888880', arc: '#888880', subW: 1, subH: 2, bgImage: 'glaze/storm.jpg' },
+  { name: 'Rect Surf',     background: '#486878', arc: '#486878', subW: 1, subH: 2, bgImage: 'glaze/Surf.jpg' },
+  { name: 'Rect Basalt',   background: '#302828', arc: '#302828', subW: 1, subH: 2, bgImage: 'glaze/Basalt.jpg' },
+  { name: 'Rect Poppy',    background: '#C05528', arc: '#C05528', subW: 1, subH: 2, bgImage: 'glaze/Poppy.jpg' },
 ]
 
 // ─── Cell ────────────────────────────────────────────────────────────────────
@@ -218,16 +218,15 @@ function TileTypePicker({ size, selected, onSelect }: {
           }}>
             {/* Single tile preview */}
             <div style={{
-              width: size, height: size, flexShrink: 0, borderRadius: 2, overflow: 'hidden',
+              width: size, height: t.subW === 1 ? size / 2 : size, flexShrink: 0, borderRadius: 2, overflow: 'hidden',
               border: '1px solid rgba(0,0,0,0.08)',
             }}>
               {t.image ? (
                 <img src={`${import.meta.env.BASE_URL}tiles/${t.image}`} width={size} height={size} style={{ display: 'block' }} />
+              ) : t.bgImage ? (
+                <img src={`${import.meta.env.BASE_URL}tiles/${t.bgImage}`} width={size} height={t.subW === 1 ? size / 2 : size} style={{ display: 'block', objectFit: 'cover' }} />
               ) : (
-                <svg width={size} height={size}>
-                  <rect width={size} height={size} fill={t.background} />
-                  <path d={`M 0,0 L ${size},0 A ${size},${size} 0 0,1 0,${size} Z`} fill={t.arc} />
-                </svg>
+                <div style={{ width: '100%', height: '100%', background: t.background }} />
               )}
             </div>
             <span style={{ fontSize: 10, color: '#444', lineHeight: 1.3 }}>{t.name}</span>
@@ -896,9 +895,18 @@ export function App() {
                     onClick={e => { if (stampMode) return; e.shiftKey ? handleTileReset(r, c) : handleTilePaint(r, c) }}
                     onContextMenu={e => { e.preventDefault(); if (!stampMode) handleTileRotate(r, c) }}
                     style={{ cursor: stampMode ? 'crosshair' : 'pointer' }}>
-                    <g transform={`rotate(${imgRot(((cell.rotation + tmplCell.rotation) % 4) as Rotation)},${tileSize/2},${tileSize/2})`}>
-                      <image href={`${import.meta.env.BASE_URL}tiles/${tile.image}`} width={tileSize} height={tileSize} />
-                    </g>
+                    {tile.image ? (
+                      /* Square arc tile with product photo */
+                      <g transform={`rotate(${imgRot(((cell.rotation + tmplCell.rotation) % 4) as Rotation)},${tileSize/2},${tileSize/2})`}>
+                        <image href={`${import.meta.env.BASE_URL}tiles/${tile.image}`} width={tileSize} height={tileSize} />
+                      </g>
+                    ) : tile.bgImage ? (
+                      /* Solid rectangle tile with glaze texture */
+                      <image href={`${import.meta.env.BASE_URL}tiles/${tile.bgImage}`} width={tileSize} height={tileSize} preserveAspectRatio="xMidYMid slice" />
+                    ) : (
+                      /* Fallback solid color */
+                      <rect width={tileSize} height={tileSize} fill={tile.background} />
+                    )}
                   </g>
                 </g>
               )
