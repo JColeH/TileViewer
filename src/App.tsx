@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { GROUT_COLORS } from './colors'
+import { DESIGN_LIBRARY } from './library'
 
 type Rotation = 0 | 1 | 2 | 3
 
@@ -255,6 +256,56 @@ function SavedDesigns({ onLoad, currentHash }: { onLoad: (hash: string) => void;
           <button onClick={() => handleDelete(i)} style={{ fontSize: 9, border: 'none', background: 'none', cursor: 'pointer', color: '#ccc' }}>✕</button>
         </div>
       ))}
+    </div>
+  )
+}
+
+// ─── Design Library ─────────────────────────────────────────────────────────
+function DesignLibrary({ onLoad }: { onLoad: (hash: string) => void }) {
+  const [search, setSearch] = useState('')
+  const [expanded, setExpanded] = useState(false)
+  const filtered = search.trim()
+    ? DESIGN_LIBRARY.filter(d => {
+        const q = search.toLowerCase()
+        return d.name.toLowerCase().includes(q) || d.description.toLowerCase().includes(q) || d.keywords.some(k => k.includes(q))
+      })
+    : DESIGN_LIBRARY
+  return (
+    <div style={{ marginBottom: 18 }}>
+      <div onClick={() => setExpanded(!expanded)} style={{
+        fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.7px',
+        color: '#666', marginBottom: 7, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
+      }}>
+        <span style={{ fontSize: 8 }}>{expanded ? '▼' : '▶'}</span>
+        Design Library ({DESIGN_LIBRARY.length})
+      </div>
+      {expanded && (
+        <>
+          <input type="text" placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)}
+            style={{ width: '100%', padding: '5px 8px', fontSize: 11, border: '1px solid #e0e0e0', borderRadius: 4, marginBottom: 8, boxSizing: 'border-box', outline: 'none' }} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            {filtered.map((d, i) => (
+              <div key={i} onClick={() => onLoad(d.hash)} style={{
+                padding: '6px 8px', borderRadius: 4, cursor: 'pointer', border: '1px solid #e8e8e8', background: 'white',
+              }}
+                onMouseEnter={e => (e.currentTarget.style.borderColor = '#111')}
+                onMouseLeave={e => (e.currentTarget.style.borderColor = '#e8e8e8')}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: '#222' }}>{d.name}</span>
+                  <span style={{ fontSize: 9, color: '#c89030' }}>{d.rating}/10</span>
+                </div>
+                <div style={{ fontSize: 9, color: '#888', lineHeight: 1.4, marginBottom: 3 }}>{d.description}</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                  {d.keywords.map(k => (
+                    <span key={k} style={{ fontSize: 8, padding: '1px 5px', background: '#f0f0f0', borderRadius: 3, color: '#666' }}>{k}</span>
+                  ))}
+                </div>
+              </div>
+            ))}
+            {filtered.length === 0 && <div style={{ fontSize: 10, color: '#bbb', textAlign: 'center', padding: 8 }}>No matches</div>}
+          </div>
+        </>
+      )}
     </div>
   )
 }
@@ -619,6 +670,8 @@ export function App() {
           </div>
 
           <SavedDesigns onLoad={loadDesign} currentHash={currentHash} />
+
+          <DesignLibrary onLoad={loadDesign} />
 
           <button onClick={downloadSVG} style={{ width: '100%', padding: '8px 0', fontSize: 11, fontWeight: 600, background: '#f4f4f4', border: '1px solid #e0e0e0', borderRadius: 4, cursor: 'pointer', color: '#333', marginBottom: 10 }}>
             ↓ Export SVG
