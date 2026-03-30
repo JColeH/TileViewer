@@ -1,114 +1,147 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { GROUT_COLORS } from './colors'
-import { DESIGN_LIBRARY, type Design } from './library'
 
 type Rotation = 0 | 1 | 2 | 3
 
-// ─── Tile types (fixed background + arc color pairs) ────────────────────────
+// ─── Tile types ─────────────────────────────────────────────────────────────
+// The grid is cells. A cell is half the old tile size.
+// Arc tiles = 2×2 cells, rectangles = 1×2 or 2×1, cuts = 1×1.
 
 interface TileType {
   name: string
+  group: 'arc' | 'vert' | 'horiz' | 'cut'
+  w: number               // width in cells
+  h: number               // height in cells
   background: string
-  arc: string
-  image?: string          // full tile photo (square tiles)
-  bgImage?: string        // background glaze texture (rectangle tiles)
-  arcImage?: string       // arc glaze texture (rectangle tiles)
-  subW: number            // width in sub-cells at rotation 0 (2=square, 1=half)
-  subH: number            // height in sub-cells at rotation 0
+  arc?: string            // only for arc tiles
+  image?: string          // product photo (arc tiles)
+  bgImage?: string        // glaze texture (solid tiles)
+  rotatable: boolean      // arc tiles can rotate, solid tiles cannot
 }
 
-// Effective sub-cell size after rotation (odd rotations swap w/h)
-function tileDims(t: TileType, rot: Rotation): { w: number; h: number } {
-  return (rot === 1 || rot === 3) ? { w: t.subH, h: t.subW } : { w: t.subW, h: t.subH }
-}
-
-// Images are naturally oriented with arc at bottom-right.
-// To show rotation r, we rotate the image by ((r - 2 + 4) % 4) * 90 degrees.
 function imgRot(r: Rotation): number { return ((r - 2 + 4) % 4) * 90 }
 
-// ─── Square tiles (2×2 sub-cells) — use product photos ─────────────────────
+const GLAZE_COLORS: { name: string; hex: string; img: string }[] = [
+  { name: 'Birch',   hex: '#EAE2D6', img: 'glaze/Birch.jpg' },
+  { name: 'Dune',    hex: '#DECAB0', img: 'glaze/Dune.jpg' },
+  { name: 'Coral',   hex: '#C87858', img: 'glaze/Coral.jpg' },
+  { name: 'Sunbeam', hex: '#C89030', img: 'glaze/Sunbeam.jpg' },
+  { name: 'Poppy',   hex: '#C05528', img: 'glaze/Poppy.jpg' },
+  { name: 'Redwood', hex: '#782828', img: 'glaze/Redwood.jpg' },
+  { name: 'Denim',   hex: '#9898A8', img: 'glaze/Denim.jpg' },
+  { name: 'Storm',   hex: '#888880', img: 'glaze/storm.jpg' },
+  { name: 'Surf',    hex: '#486878', img: 'glaze/Surf.jpg' },
+  { name: 'Basalt',  hex: '#302828', img: 'glaze/Basalt.jpg' },
+]
+
 const TILE_TYPES: TileType[] = [
-  { name: 'Birch / Denim',      background: '#EAE2D6', arc: '#9898A8', image: 'Kat-Roger-6x6-arc-Birch-Denim-230x230.jpg', subW: 2, subH: 2 },
-  { name: 'Birch / Dune',       background: '#EAE2D6', arc: '#DECAB0', image: 'Kat-Roger-6x6-arc-Birch-Dune-230x230.jpg', subW: 2, subH: 2 },
-  { name: 'Denim / Birch',      background: '#9898A8', arc: '#EAE2D6', image: 'Kat-Roger-6x6-arc-Denim-Birch-230x230.jpg', subW: 2, subH: 2 },
-  { name: 'Dune / Birch',       background: '#DECAB0', arc: '#EAE2D6', image: 'Kat-Roger-6x6-arc-Dune-Birch-230x230.jpg', subW: 2, subH: 2 },
-  { name: 'Basalt / Dune',      background: '#302828', arc: '#DECAB0', image: 'Kat-Roger-6x6-arc-Basalt-Dune-230x230.jpg', subW: 2, subH: 2 },
-  { name: 'Storm / Birch',      background: '#888880', arc: '#EAE2D6', image: 'Kat-Roger-6x6-arc-Storm-Birch-230x230.jpg', subW: 2, subH: 2 },
-  { name: 'Sunbeam / Denim',    background: '#C89030', arc: '#9898A8', image: 'Kat-Roger-6x6-arc-Sunbeam-Denim-230x230.jpg', subW: 2, subH: 2 },
-  { name: 'Surf / Sunbeam',     background: '#486878', arc: '#C89030', image: 'Kat-Roger-6x6-arc-Surf-Sunbeam-230x230.jpg', subW: 2, subH: 2 },
-  { name: 'Redwood / Coral',    background: '#782828', arc: '#C87858', image: 'Kat-Roger-6x6-arc-Redwood-Coral-230x230.jpg', subW: 2, subH: 2 },
-  { name: 'Redwood / Dune',     background: '#782828', arc: '#DECAB0', image: 'Kat-Roger-6x6-arc-Redwood-Dune-230x230.jpg', subW: 2, subH: 2 },
-  { name: 'Redwood / Sunbeam',  background: '#782828', arc: '#C89030', image: 'Kat-Roger-6x6-arc-Redwood-Sunbeam-2-230x230.jpg', subW: 2, subH: 2 },
-  { name: 'Redwood / Surf',     background: '#782828', arc: '#486878', image: 'Kat-Roger-6x6-arc-Redwood-Surf-230x230.jpg', subW: 2, subH: 2 },
-  // ─── Rectangle tiles (solid glazes) ─────────────────────────────────────────
-  { name: 'Rect Birch',    background: '#EAE2D6', arc: '#EAE2D6', subW: 1, subH: 2, bgImage: 'glaze/Birch.jpg' },
-  { name: 'Rect Dune',     background: '#DECAB0', arc: '#DECAB0', subW: 1, subH: 2, bgImage: 'glaze/Dune.jpg' },
-  { name: 'Rect Coral',    background: '#C87858', arc: '#C87858', subW: 1, subH: 2, bgImage: 'glaze/Coral.jpg' },
-  { name: 'Rect Sunbeam',  background: '#C89030', arc: '#C89030', subW: 1, subH: 2, bgImage: 'glaze/Sunbeam.jpg' },
-  { name: 'Rect Redwood',  background: '#782828', arc: '#782828', subW: 1, subH: 2, bgImage: 'glaze/Redwood.jpg' },
-  { name: 'Rect Denim',    background: '#9898A8', arc: '#9898A8', subW: 1, subH: 2, bgImage: 'glaze/Denim.jpg' },
-  { name: 'Rect Storm',    background: '#888880', arc: '#888880', subW: 1, subH: 2, bgImage: 'glaze/storm.jpg' },
-  { name: 'Rect Surf',     background: '#486878', arc: '#486878', subW: 1, subH: 2, bgImage: 'glaze/Surf.jpg' },
-  { name: 'Rect Basalt',   background: '#302828', arc: '#302828', subW: 1, subH: 2, bgImage: 'glaze/Basalt.jpg' },
-  { name: 'Rect Poppy',    background: '#C05528', arc: '#C05528', subW: 1, subH: 2, bgImage: 'glaze/Poppy.jpg' },
+  // Arc tiles (2×2) — product photos
+  { name: 'Birch / Denim',    group: 'arc', w: 2, h: 2, background: '#EAE2D6', arc: '#9898A8', image: 'Kat-Roger-6x6-arc-Birch-Denim-230x230.jpg', rotatable: true },
+  { name: 'Birch / Dune',     group: 'arc', w: 2, h: 2, background: '#EAE2D6', arc: '#DECAB0', image: 'Kat-Roger-6x6-arc-Birch-Dune-230x230.jpg', rotatable: true },
+  { name: 'Denim / Birch',    group: 'arc', w: 2, h: 2, background: '#9898A8', arc: '#EAE2D6', image: 'Kat-Roger-6x6-arc-Denim-Birch-230x230.jpg', rotatable: true },
+  { name: 'Dune / Birch',     group: 'arc', w: 2, h: 2, background: '#DECAB0', arc: '#EAE2D6', image: 'Kat-Roger-6x6-arc-Dune-Birch-230x230.jpg', rotatable: true },
+  { name: 'Basalt / Dune',    group: 'arc', w: 2, h: 2, background: '#302828', arc: '#DECAB0', image: 'Kat-Roger-6x6-arc-Basalt-Dune-230x230.jpg', rotatable: true },
+  { name: 'Storm / Birch',    group: 'arc', w: 2, h: 2, background: '#888880', arc: '#EAE2D6', image: 'Kat-Roger-6x6-arc-Storm-Birch-230x230.jpg', rotatable: true },
+  { name: 'Sunbeam / Denim',  group: 'arc', w: 2, h: 2, background: '#C89030', arc: '#9898A8', image: 'Kat-Roger-6x6-arc-Sunbeam-Denim-230x230.jpg', rotatable: true },
+  { name: 'Surf / Sunbeam',   group: 'arc', w: 2, h: 2, background: '#486878', arc: '#C89030', image: 'Kat-Roger-6x6-arc-Surf-Sunbeam-230x230.jpg', rotatable: true },
+  { name: 'Redwood / Coral',  group: 'arc', w: 2, h: 2, background: '#782828', arc: '#C87858', image: 'Kat-Roger-6x6-arc-Redwood-Coral-230x230.jpg', rotatable: true },
+  { name: 'Redwood / Dune',   group: 'arc', w: 2, h: 2, background: '#782828', arc: '#DECAB0', image: 'Kat-Roger-6x6-arc-Redwood-Dune-230x230.jpg', rotatable: true },
+  { name: 'Redwood / Sunbeam',group: 'arc', w: 2, h: 2, background: '#782828', arc: '#C89030', image: 'Kat-Roger-6x6-arc-Redwood-Sunbeam-2-230x230.jpg', rotatable: true },
+  { name: 'Redwood / Surf',   group: 'arc', w: 2, h: 2, background: '#782828', arc: '#486878', image: 'Kat-Roger-6x6-arc-Redwood-Surf-230x230.jpg', rotatable: true },
+  // Vertical rectangles (1×2) — solid glazes
+  ...GLAZE_COLORS.map(g => ({ name: `${g.name} ↕`, group: 'vert' as const, w: 1, h: 2, background: g.hex, bgImage: g.img, rotatable: false })),
+  // Horizontal rectangles (2×1) — solid glazes
+  ...GLAZE_COLORS.map(g => ({ name: `${g.name} ↔`, group: 'horiz' as const, w: 2, h: 1, background: g.hex, bgImage: g.img, rotatable: false })),
+  // Cut tiles (1×1) — solid glazes
+  ...GLAZE_COLORS.map(g => ({ name: `${g.name} ◻`, group: 'cut' as const, w: 1, h: 1, background: g.hex, bgImage: g.img, rotatable: false })),
 ]
 
-// ─── Cell ────────────────────────────────────────────────────────────────────
+const GROUP_LABELS: Record<string, string> = { arc: 'Arc Tiles (2×2)', vert: 'Vertical (1×2)', horiz: 'Horizontal (2×1)', cut: 'Cut (1×1)' }
 
-interface Cell {
-  rotation: Rotation
-  typeOverride?: number  // if set, overrides the template type for this cell
-}
+// ─── Grid data model ────────────────────────────────────────────────────────
+// Each cell is either null (empty = grout) or an anchor of a placed tile.
+// Multi-cell tiles: only the top-left cell is the anchor. Other cells point to it.
 
-// ─── Patterns ───────────────────────────────────────────────────────────────
-
-type PatternFn = (r: number, c: number) => Rotation
-
-const PATTERNS: { key: string; label: string; fn: PatternFn }[] = [
-  { key: 'allTL',  label: '↖ All',      fn: ()    => 0 },
-  { key: 'allTR',  label: '↗ All',      fn: ()    => 1 },
-  { key: 'allBR',  label: '↘ All',      fn: ()    => 2 },
-  { key: 'allBL',  label: '↙ All',      fn: ()    => 3 },
-  { key: 'pinIn',  label: 'Pinwheel ●', fn: (r,c) => ([[2,3],[1,0]] as Rotation[][])[r%2][c%2] },
-  { key: 'pinOut', label: 'Pinwheel ○', fn: (r,c) => ([[0,1],[3,2]] as Rotation[][])[r%2][c%2] },
-  { key: 'diag',   label: 'Diagonal',   fn: (r,c) => ((r+c)%4) as Rotation },
-  { key: 'rows',   label: 'By Row',     fn: (r)   => (r%2===0 ? 0 : 2) as Rotation },
-  { key: 'cols',   label: 'By Column',  fn: (_,c) => (c%2===0 ? 1 : 3) as Rotation },
-  { key: 'checker',label: 'Checker',    fn: (r,c) => ((r+c)%2===0 ? 0 : 2) as Rotation },
-]
-
-function makeGrid(rows: number, cols: number, fn: PatternFn = () => 0): Cell[][] {
-  return Array.from({ length: rows }, (_, r) =>
-    Array.from({ length: cols }, (_, c) => ({ rotation: fn(r, c) }))
-  )
-}
-
-// ─── Template cell ───────────────────────────────────────────────────────────
-
-interface TemplateCell {
+interface PlacedTile {
   typeIndex: number
-  rotation: Rotation
+  rotation: Rotation     // only meaningful for arc tiles
 }
 
-function makeTemplate(rows: number, cols: number): TemplateCell[][] {
-  return Array.from({ length: rows }, () =>
-    Array.from({ length: cols }, () => ({ typeIndex: 0, rotation: 0 as Rotation }))
-  )
+interface GridCell {
+  tile: PlacedTile
+  anchorR: number        // row of the anchor (top-left of this tile)
+  anchorC: number        // col of the anchor
 }
 
-const TEMPLATE_PRESETS: { label: string; rows: number; cols: number }[] = [
-  { label: '1×1', rows: 1, cols: 1 },
-  { label: '2×2', rows: 2, cols: 2 },
-  { label: '2×3', rows: 2, cols: 3 },
-  { label: '3×3', rows: 3, cols: 3 },
-  { label: '4×4', rows: 4, cols: 4 },
-]
+type Grid = (GridCell | null)[][]
 
-// ─── Staircase room layout ──────────────────────────────────────────────────
-const STAIRCASE_COLS         = 9
-const STAIRCASE_ROWS         = 17
-const STAIRCASE_UPPER_OFFSET = 4
-const STAIRCASE_UPPER_ROWS   = 6
+function isAnchor(grid: Grid, r: number, c: number): boolean {
+  const cell = grid[r]?.[c]
+  return cell != null && cell.anchorR === r && cell.anchorC === c
+}
+
+function makeEmptyGrid(rows: number, cols: number): Grid {
+  return Array.from({ length: rows }, () => Array.from({ length: cols }, () => null))
+}
+
+// Place a tile, nuking anything in its footprint
+function placeTile(grid: Grid, r: number, c: number, typeIndex: number, rotation: Rotation): Grid {
+  const tile = TILE_TYPES[typeIndex]
+  const rows = grid.length, cols = grid[0]?.length ?? 0
+  if (r + tile.h > rows || c + tile.w > cols) return grid
+  const next = grid.map(row => [...row])
+  // Clear anything overlapping
+  for (let dr = 0; dr < tile.h; dr++) {
+    for (let dc = 0; dc < tile.w; dc++) {
+      const existing = next[r + dr][c + dc]
+      if (existing) clearTile(next, existing.anchorR, existing.anchorC)
+    }
+  }
+  // Place
+  const placed: PlacedTile = { typeIndex, rotation }
+  for (let dr = 0; dr < tile.h; dr++) {
+    for (let dc = 0; dc < tile.w; dc++) {
+      next[r + dr][c + dc] = { tile: placed, anchorR: r, anchorC: c }
+    }
+  }
+  return next
+}
+
+function clearTile(grid: Grid, anchorR: number, anchorC: number) {
+  const cell = grid[anchorR]?.[anchorC]
+  if (!cell) return
+  const tile = TILE_TYPES[cell.tile.typeIndex]
+  for (let dr = 0; dr < tile.h; dr++) {
+    for (let dc = 0; dc < tile.w; dc++) {
+      const cr = anchorR + dr, cc = anchorC + dc
+      if (grid[cr]?.[cc]?.anchorR === anchorR && grid[cr]?.[cc]?.anchorC === anchorC) {
+        grid[cr][cc] = null
+      }
+    }
+  }
+}
+
+// Fill grid with 2×2 arc tiles (default type 0)
+function fillWithSquares(rows: number, cols: number, typeIndex: number = 0, rotation: Rotation = 2): Grid {
+  const grid = makeEmptyGrid(rows, cols)
+  for (let r = 0; r <= rows - 2; r += 2) {
+    for (let c = 0; c <= cols - 2; c += 2) {
+      const placed: PlacedTile = { typeIndex, rotation }
+      for (let dr = 0; dr < 2; dr++) {
+        for (let dc = 0; dc < 2; dc++) {
+          grid[r + dr][c + dc] = { tile: placed, anchorR: r, anchorC: c }
+        }
+      }
+    }
+  }
+  return grid
+}
+
+// ─── Staircase layout (doubled: 18×34) ──────────────────────────────────────
+const STAIRCASE_COLS = 18    // 9 tiles × 2
+const STAIRCASE_ROWS = 34    // 17 tiles × 2
+const STAIRCASE_UPPER_OFFSET = 8  // 4 tiles × 2
+const STAIRCASE_UPPER_ROWS = 12   // 6 tiles × 2
 
 function staircaseMask(): boolean[][] {
   return Array.from({ length: STAIRCASE_ROWS }, (_, r) =>
@@ -117,139 +150,34 @@ function staircaseMask(): boolean[][] {
     )
   )
 }
-
 const STAIRCASE_MASK = staircaseMask()
 
-// ─── Layouts ────────────────────────────────────────────────────────────────
-
-interface Layout {
-  label: string; cols: number; rows: number
-  mask: boolean[][] | null; defaultPattern: string
-}
-
+interface Layout { label: string; cols: number; rows: number; mask: boolean[][] | null }
 const LAYOUTS: Record<string, Layout> = {
-  staircase: { label: 'Staircase Room', cols: STAIRCASE_COLS, rows: STAIRCASE_ROWS, mask: STAIRCASE_MASK, defaultPattern: 'allBR' },
-  grid:      { label: 'Free Grid',      cols: 8,              rows: 8,              mask: null,            defaultPattern: 'pinIn' },
+  staircase: { label: 'Staircase Room', cols: STAIRCASE_COLS, rows: STAIRCASE_ROWS, mask: STAIRCASE_MASK },
+  grid:      { label: 'Free Grid',      cols: 16,             rows: 16,             mask: null },
 }
 
-// ─── Template editor ────────────────────────────────────────────────────────
-
-function TemplateEditor({ template, tileSize, groutColor, selectedType, onSetSlot, onRotateSlot, onResize, activePreset }: {
-  template: TemplateCell[][]
-  tileSize: number
-  groutColor: string
-  selectedType: number
-  onSetSlot: (r: number, c: number) => void
-  onRotateSlot: (r: number, c: number) => void
-  onResize: (rows: number, cols: number) => void
-  activePreset: string
-}) {
-  const rows = template.length
-  const cols = template[0]?.length ?? 1
-  const S = tileSize; const G = 2; const CELL = S + G
-
-  return (
-    <div style={{ marginBottom: 18 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-        <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.7px', color: '#666' }}>
-          Template
-        </span>
-        <div style={{ display: 'flex', gap: 3 }}>
-          {TEMPLATE_PRESETS.map(p => (
-            <button key={p.label} onClick={() => onResize(p.rows, p.cols)} style={{
-              padding: '2px 5px', fontSize: 9,
-              border: activePreset === p.label ? '1.5px solid #111' : '1px solid #ddd',
-              borderRadius: 3, cursor: 'pointer',
-              background: activePreset === p.label ? '#111' : '#f4f4f4',
-              color: activePreset === p.label ? 'white' : '#555',
-            }}>{p.label}</button>
-          ))}
-        </div>
-      </div>
-
-      {/* Template grid */}
-      <svg
-        width={cols * CELL + G}
-        height={rows * CELL + G}
-        style={{ display: 'block', borderRadius: 4, overflow: 'hidden', cursor: 'pointer' }}
-        onContextMenu={e => e.preventDefault()}
-      >
-        <rect width={cols * CELL + G} height={rows * CELL + G} fill={groutColor} />
-        {template.map((row, r) =>
-          row.map((cell, c) => {
-            const t = TILE_TYPES[cell.typeIndex]
-            const px = G + c * CELL; const py = G + r * CELL
-            return (
-              <g key={`${r}-${c}`} transform={`translate(${px},${py})`}
-                onClick={() => onSetSlot(r, c)}
-                onContextMenu={e => { e.preventDefault(); onRotateSlot(r, c) }}
-              >
-                <g transform={`rotate(${imgRot(cell.rotation)},${S/2},${S/2})`}>
-                  <image href={`${import.meta.env.BASE_URL}tiles/${t.image}`} width={S} height={S} />
-                </g>
-              </g>
-            )
-          })
-        )}
-      </svg>
-      <div style={{ fontSize: 9, color: '#bbb', marginTop: 4 }}>Left-click to assign · right-click to rotate</div>
-    </div>
-  )
-}
-
-// ─── Tile type picker ────────────────────────────────────────────────────────
-
-function TileTypePicker({ size, selected, onSelect }: {
-  size: number; selected: number; onSelect: (i: number) => void
-}) {
-  return (
-    <div style={{ marginBottom: 18 }}>
-      <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.7px', color: '#666', marginBottom: 7 }}>
-        Tile
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-        {TILE_TYPES.map((t, i) => (
-          <div key={i} onClick={() => onSelect(i)} style={{
-            display: 'flex', alignItems: 'center', gap: 8, padding: '4px 6px',
-            borderRadius: 5, cursor: 'pointer',
-            border: selected === i ? '2px solid #111' : '1px solid #e8e8e8',
-            background: selected === i ? '#f8f8f8' : 'white',
-            boxSizing: 'border-box',
-          }}>
-            {/* Single tile preview */}
-            <div style={{
-              width: size, height: t.subW === 1 ? size / 2 : size, flexShrink: 0, borderRadius: 2, overflow: 'hidden',
-              border: '1px solid rgba(0,0,0,0.08)',
-            }}>
-              {t.image ? (
-                <img src={`${import.meta.env.BASE_URL}tiles/${t.image}`} width={size} height={size} style={{ display: 'block' }} />
-              ) : t.bgImage ? (
-                <img src={`${import.meta.env.BASE_URL}tiles/${t.bgImage}`} width={size} height={t.subW === 1 ? size / 2 : size} style={{ display: 'block', objectFit: 'cover' }} />
-              ) : (
-                <div style={{ width: '100%', height: '100%', background: t.background }} />
-              )}
-            </div>
-            <span style={{ fontSize: 10, color: '#444', lineHeight: 1.3 }}>{t.name}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
+// ─── Rotation patterns (for arc tiles, using tile-level coords) ─────────────
+type PatternFn = (r: number, c: number) => Rotation
+const PATTERNS: { key: string; label: string; fn: PatternFn }[] = [
+  { key: 'allTL',  label: '↖ All',      fn: ()    => 0 },
+  { key: 'allTR',  label: '↗ All',      fn: ()    => 1 },
+  { key: 'allBR',  label: '↘ All',      fn: ()    => 2 },
+  { key: 'allBL',  label: '↙ All',      fn: ()    => 3 },
+  { key: 'pinIn',  label: 'Pinwheel ●', fn: (r,c) => ([[2,3],[1,0]] as Rotation[][])[r%2][c%2] },
+  { key: 'pinOut', label: 'Pinwheel ○', fn: (r,c) => ([[0,1],[3,2]] as Rotation[][])[r%2][c%2] },
+  { key: 'diag',   label: 'Diagonal',   fn: (r,c) => ((r+c)%4) as Rotation },
+  { key: 'checker',label: 'Checker',    fn: (r,c) => ((r+c)%2===0 ? 0 : 2) as Rotation },
+]
 
 // ─── Grout picker ───────────────────────────────────────────────────────────
-
-function GroutPicker({ selected, onSelect }: {
-  selected: string; onSelect: (hex: string) => void
-}) {
+function GroutPicker({ selected, onSelect }: { selected: string; onSelect: (hex: string) => void }) {
   return (
     <div style={{ marginBottom: 18 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 6 }}>
         <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.7px', color: '#666' }}>Grout</span>
-        <div style={{ width: 16, height: 16, background: selected, border: '1px solid rgba(0,0,0,0.18)', borderRadius: 3, flexShrink: 0 }} />
-        <span style={{ fontSize: 10, color: '#aaa' }}>
-          {GROUT_COLORS.find(g => g.hex === selected)?.name ?? ''}
-        </span>
+        <div style={{ width: 16, height: 16, background: selected, border: '1px solid rgba(0,0,0,0.18)', borderRadius: 3 }} />
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
         {GROUT_COLORS.map(g => (
@@ -264,478 +192,212 @@ function GroutPicker({ selected, onSelect }: {
   )
 }
 
-// ─── Design Library ─────────────────────────────────────────────────────────
-
-function DesignLibrary({ onLoad }: { onLoad: (hash: string) => void }) {
-  const [search, setSearch] = useState('')
-  const [expanded, setExpanded] = useState(false)
-
-  const filtered = search.trim()
-    ? DESIGN_LIBRARY.filter(d => {
-        const q = search.toLowerCase()
-        return d.name.toLowerCase().includes(q) ||
-               d.description.toLowerCase().includes(q) ||
-               d.keywords.some(k => k.includes(q))
-      })
-    : DESIGN_LIBRARY
-
-  const stars = (n: number) => {
-    const full = Math.floor(n / 2)
-    const half = n % 2 >= 1
-    return '★'.repeat(full) + (half ? '½' : '') + '☆'.repeat(5 - full - (half ? 1 : 0))
-  }
-
+// ─── Tile type picker (grouped by shape) ────────────────────────────────────
+function TileTypePicker({ selected, onSelect }: { selected: number; onSelect: (i: number) => void }) {
+  const groups = ['arc', 'vert', 'horiz', 'cut'] as const
   return (
     <div style={{ marginBottom: 18 }}>
-      <div
-        onClick={() => setExpanded(!expanded)}
-        style={{
-          fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.7px',
-          color: '#666', marginBottom: 7, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
-        }}
-      >
-        <span style={{ fontSize: 8 }}>{expanded ? '▼' : '▶'}</span>
-        Design Library ({DESIGN_LIBRARY.length})
-      </div>
-      {expanded && (
-        <>
-          <input
-            type="text"
-            placeholder="Search by keyword..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            style={{
-              width: '100%', padding: '5px 8px', fontSize: 11, border: '1px solid #e0e0e0',
-              borderRadius: 4, marginBottom: 8, boxSizing: 'border-box', outline: 'none',
-            }}
-          />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {filtered.map((d, i) => (
-              <div
-                key={i}
-                onClick={() => onLoad(d.hash)}
-                style={{
-                  padding: '8px 10px', borderRadius: 5, cursor: 'pointer',
-                  border: '1px solid #e8e8e8', background: 'white',
-                  transition: 'border-color 0.15s',
-                }}
-                onMouseEnter={e => (e.currentTarget.style.borderColor = '#111')}
-                onMouseLeave={e => (e.currentTarget.style.borderColor = '#e8e8e8')}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: '#222' }}>{d.name}</span>
-                  <span style={{ fontSize: 9, color: '#c89030', letterSpacing: -1 }}>{stars(d.rating)}</span>
+      {groups.map(group => {
+        const tiles = TILE_TYPES.map((t, i) => ({ t, i })).filter(({ t }) => t.group === group)
+        return (
+          <div key={group} style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#999', marginBottom: 4 }}>
+              {GROUP_LABELS[group]}
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+              {tiles.map(({ t, i }) => (
+                <div key={i} onClick={() => onSelect(i)} title={t.name} style={{
+                  width: group === 'horiz' ? 36 : group === 'vert' ? 16 : group === 'cut' ? 16 : 32,
+                  height: group === 'vert' ? 36 : group === 'horiz' ? 16 : group === 'cut' ? 16 : 32,
+                  borderRadius: 2, cursor: 'pointer', overflow: 'hidden',
+                  border: selected === i ? '2px solid #111' : '1px solid rgba(0,0,0,0.12)',
+                  boxSizing: 'border-box',
+                }}>
+                  {t.image ? (
+                    <img src={`${import.meta.env.BASE_URL}tiles/${t.image}`} style={{ width: '100%', height: '100%', display: 'block', objectFit: 'cover' }} />
+                  ) : t.bgImage ? (
+                    <img src={`${import.meta.env.BASE_URL}tiles/${t.bgImage}`} style={{ width: '100%', height: '100%', display: 'block', objectFit: 'cover' }} />
+                  ) : (
+                    <div style={{ width: '100%', height: '100%', background: t.background }} />
+                  )}
                 </div>
-                <div style={{ fontSize: 9, color: '#888', lineHeight: 1.4, marginBottom: 4 }}>{d.description}</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-                  {d.keywords.slice(0, 5).map(k => (
-                    <span key={k} style={{
-                      fontSize: 8, padding: '1px 5px', background: '#f0f0f0', borderRadius: 3, color: '#666',
-                    }}>{k}</span>
-                  ))}
-                </div>
-              </div>
-            ))}
-            {filtered.length === 0 && (
-              <div style={{ fontSize: 10, color: '#bbb', textAlign: 'center', padding: 8 }}>No matches</div>
-            )}
+              ))}
+            </div>
           </div>
-        </>
-      )}
+        )
+      })}
     </div>
   )
 }
 
 // ─── Saved Designs (localStorage) ───────────────────────────────────────────
-
 interface SavedDesign { name: string; hash: string }
-const STORAGE_KEY = 'tile-visualizer-saved'
-
-function loadSaved(): SavedDesign[] {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') } catch { return [] }
-}
-function storeSaved(designs: SavedDesign[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(designs))
-}
+const STORAGE_KEY = 'tile-visualizer-saved-v3'
+function loadSaved(): SavedDesign[] { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') } catch { return [] } }
+function storeSaved(d: SavedDesign[]) { localStorage.setItem(STORAGE_KEY, JSON.stringify(d)) }
 
 function SavedDesigns({ onLoad, currentHash }: { onLoad: (hash: string) => void; currentHash: string }) {
   const [saved, setSaved] = useState<SavedDesign[]>(loadSaved)
   const [expanded, setExpanded] = useState(false)
-
-  const handleSave = () => {
-    const name = prompt('Name this design:')
-    if (!name?.trim()) return
-    const next = [...saved, { name: name.trim(), hash: currentHash }]
-    setSaved(next)
-    storeSaved(next)
-  }
-
-  const handleDelete = (i: number) => {
-    const next = saved.filter((_, j) => j !== i)
-    setSaved(next)
-    storeSaved(next)
-  }
-
+  const handleSave = () => { const n = prompt('Name:'); if (!n?.trim()) return; const next = [...saved, { name: n.trim(), hash: currentHash }]; setSaved(next); storeSaved(next) }
+  const handleDelete = (i: number) => { const next = saved.filter((_, j) => j !== i); setSaved(next); storeSaved(next) }
   return (
     <div style={{ marginBottom: 18 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 7 }}>
-        <div
-          onClick={() => setExpanded(!expanded)}
-          style={{
-            fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.7px',
-            color: '#666', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
-          }}
-        >
-          <span style={{ fontSize: 8 }}>{expanded ? '▼' : '▶'}</span>
-          My Designs ({saved.length})
+        <div onClick={() => setExpanded(!expanded)} style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.7px', color: '#666', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span style={{ fontSize: 8 }}>{expanded ? '▼' : '▶'}</span> My Designs ({saved.length})
         </div>
-        <button onClick={handleSave} style={{
-          fontSize: 9, padding: '2px 8px', border: '1px solid #ddd', borderRadius: 3,
-          background: '#f4f4f4', cursor: 'pointer', color: '#555',
-        }}>+ Save Current</button>
+        <button onClick={handleSave} style={{ fontSize: 9, padding: '2px 8px', border: '1px solid #ddd', borderRadius: 3, background: '#f4f4f4', cursor: 'pointer', color: '#555' }}>+ Save</button>
       </div>
-      {expanded && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {saved.length === 0 && (
-            <div style={{ fontSize: 10, color: '#bbb', textAlign: 'center', padding: 8 }}>No saved designs yet</div>
-          )}
-          {saved.map((d, i) => (
-            <div key={i} style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: '5px 8px', borderRadius: 4, border: '1px solid #e8e8e8', background: 'white',
-            }}>
-              <span
-                onClick={() => onLoad(d.hash)}
-                style={{ fontSize: 11, color: '#333', cursor: 'pointer', flex: 1 }}
-              >{d.name}</span>
-              <button onClick={() => handleDelete(i)} style={{
-                fontSize: 9, padding: '1px 5px', border: 'none', background: 'none',
-                cursor: 'pointer', color: '#ccc',
-              }}>✕</button>
-            </div>
-          ))}
+      {expanded && saved.map((d, i) => (
+        <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 8px', marginBottom: 3, borderRadius: 4, border: '1px solid #e8e8e8' }}>
+          <span onClick={() => onLoad(d.hash)} style={{ fontSize: 11, color: '#333', cursor: 'pointer', flex: 1 }}>{d.name}</span>
+          <button onClick={() => handleDelete(i)} style={{ fontSize: 9, border: 'none', background: 'none', cursor: 'pointer', color: '#ccc' }}>✕</button>
         </div>
-      )}
+      ))}
     </div>
   )
 }
 
-// ─── URL state encoding / decoding ──────────────────────────────────────────
-
-// Template: each cell encoded as hex typeIndex (0-b) + rotation (0-3), row-major
-// Cell rotations: string of 0-3 digits, row-major
-function encodeState(
-  layoutKey: string, tRows: number, tCols: number, tmpl: TemplateCell[][],
-  grout: string, tileSize: number, groutWidth: number, cells: Cell[][],
-) {
-  const t = tmpl.flatMap(row => row.map(c => c.typeIndex.toString(16) + c.rotation)).join('')
-  // Each cell: rotation (0-3) + override type as hex or '-' for none
-  const r = cells.flatMap(row => row.map(c =>
-    c.rotation.toString() + (c.typeOverride != null ? c.typeOverride.toString(16) : '-')
-  )).join('')
+// ─── URL encoding (v3 — grid-based) ─────────────────────────────────────────
+function encodeGrid(layoutKey: string, grout: string, tileSize: number, groutWidth: number, grid: Grid): string {
+  // Encode only anchor cells: row,col,typeIndex,rotation
+  const anchors: string[] = []
+  for (let r = 0; r < grid.length; r++) {
+    for (let c = 0; c < (grid[0]?.length ?? 0); c++) {
+      if (isAnchor(grid, r, c)) {
+        const cell = grid[r][c]!
+        anchors.push(`${r}.${c}.${cell.tile.typeIndex}.${cell.tile.rotation}`)
+      }
+    }
+  }
   const params = new URLSearchParams()
+  params.set('v', '3')
   params.set('l', layoutKey)
-  params.set('ts', `${tRows}x${tCols}`)
-  params.set('t', t)
   params.set('g', grout.replace('#', ''))
   params.set('sz', String(tileSize))
   params.set('gw', String(groutWidth))
-  params.set('r', r)
+  params.set('a', anchors.join(';'))
   return params.toString()
 }
 
-function decodeState(hash: string) {
+function decodeGrid(hash: string): { layoutKey: 'staircase' | 'grid'; grout: string; tileSize: number; groutWidth: number; grid: Grid } | null {
   const params = new URLSearchParams(hash.replace(/^#/, ''))
   if (!params.has('l')) return null
   const layoutKey = params.get('l') as 'staircase' | 'grid'
-  const [tRows, tCols] = (params.get('ts') ?? '2x2').split('x').map(Number)
-  const tStr = params.get('t') ?? ''
-  const tmpl: TemplateCell[][] = []
-  for (let r = 0; r < tRows; r++) {
-    const row: TemplateCell[] = []
-    for (let c = 0; c < tCols; c++) {
-      const i = (r * tCols + c) * 2
-      row.push({
-        typeIndex: parseInt(tStr[i] ?? '0', 16),
-        rotation: (Number(tStr[i + 1] ?? '0') % 4) as Rotation,
-      })
-    }
-    tmpl.push(row)
-  }
   const grout = '#' + (params.get('g') ?? 'C0BDB8')
   const tileSize = Number(params.get('sz') ?? 56)
   const groutWidth = Number(params.get('gw') ?? 3)
   const layout = LAYOUTS[layoutKey] ?? LAYOUTS.staircase
-  const rStr = params.get('r') ?? ''
-  const cells: Cell[][] = Array.from({ length: layout.rows }, (_, r) =>
-    Array.from({ length: layout.cols }, (_, c) => {
-      const i = (r * layout.cols + c) * 2
-      const rot = (Number(rStr[i] ?? '0') % 4) as Rotation
-      const ovChar = rStr[i + 1]
-      const typeOverride = ovChar && ovChar !== '-' ? parseInt(ovChar, 16) : undefined
-      return { rotation: rot, typeOverride }
-    })
-  )
-  const preset = TEMPLATE_PRESETS.find(p => p.rows === tRows && p.cols === tCols)?.label ?? ''
-  return { layoutKey, tRows, tCols, tmpl, grout, tileSize, groutWidth, cells, preset }
+  const grid = makeEmptyGrid(layout.rows, layout.cols)
+  const aStr = params.get('a') ?? ''
+  if (aStr) {
+    for (const entry of aStr.split(';')) {
+      const [rs, cs, ts, rots] = entry.split('.')
+      const r = Number(rs), c = Number(cs), typeIndex = Number(ts), rotation = (Number(rots) % 4) as Rotation
+      if (typeIndex >= 0 && typeIndex < TILE_TYPES.length) {
+        const tile = TILE_TYPES[typeIndex]
+        const placed: PlacedTile = { typeIndex, rotation }
+        for (let dr = 0; dr < tile.h; dr++) {
+          for (let dc = 0; dc < tile.w; dc++) {
+            if (r + dr < layout.rows && c + dc < layout.cols) {
+              grid[r + dr][c + dc] = { tile: placed, anchorR: r, anchorC: c }
+            }
+          }
+        }
+      }
+    }
+  }
+  return { layoutKey, grout, tileSize, groutWidth, grid }
 }
 
 // ─── App ────────────────────────────────────────────────────────────────────
 
 export function App() {
-  const init = decodeState(window.location.hash)
+  const init = decodeGrid(window.location.hash)
 
-  const [layoutKey, setLayoutKey]       = useState<'staircase' | 'grid'>(init?.layoutKey ?? 'staircase')
+  const [layoutKey, setLayoutKey] = useState<'staircase' | 'grid'>(init?.layoutKey ?? 'staircase')
   const [selectedType, setSelectedType] = useState(0)
-  const [groutColor, setGroutColor]     = useState(init?.grout ?? '#C0BDB8')
-  const [tileSize, setTileSize]         = useState(init?.tileSize ?? 56)
-  const [groutWidth, setGroutWidth]     = useState(init?.groutWidth ?? 3)
-  const [templatePreset, setTemplatePreset] = useState(init?.preset ?? '2×2')
-  const [templateRows, setTemplateRows]     = useState(init?.tRows ?? 2)
-  const [templateCols, setTemplateCols]     = useState(init?.tCols ?? 2)
-  const [template, setTemplate]             = useState<TemplateCell[][]>(() => init?.tmpl ?? makeTemplate(2, 2))
-  const [cells, setCells]               = useState<Cell[][]>(() => {
-    if (init?.cells) return init.cells
+  const [groutColor, setGroutColor] = useState(init?.grout ?? '#C0BDB8')
+  const [tileSize, setTileSize] = useState(init?.tileSize ?? 56)
+  const [groutWidth, setGroutWidth] = useState(init?.groutWidth ?? 3)
+  const [grid, setGrid] = useState<Grid>(() => {
+    if (init?.grid) return init.grid
     const l = LAYOUTS.staircase
-    return makeGrid(l.rows, l.cols, PATTERNS.find(p => p.key === l.defaultPattern)!.fn)
+    return fillWithSquares(l.rows, l.cols, 0, 2)
   })
 
   const svgRef = useRef<SVGSVGElement>(null)
   const layout = LAYOUTS[layoutKey]
   const { cols, rows, mask } = layout
 
-  // ── Current hash (used for URL sync + saving) ──
-  const currentHash = encodeState(layoutKey, templateRows, templateCols, template, groutColor, tileSize, groutWidth, cells)
+  // ── URL sync ──
+  const currentHash = encodeGrid(layoutKey, groutColor, tileSize, groutWidth, grid)
+  useEffect(() => { window.history.replaceState(null, '', '#' + currentHash) }, [currentHash])
 
-  useEffect(() => {
-    window.history.replaceState(null, '', '#' + currentHash)
-  }, [currentHash])
-
-  // ── Load a design from library ──
+  // ── Load design ──
   const loadDesign = useCallback((hash: string) => {
-    const state = decodeState(hash)
-    if (!state) return
-    setLayoutKey(state.layoutKey)
-    setGroutColor(state.grout)
-    setTileSize(state.tileSize)
-    setGroutWidth(state.groutWidth)
-    setTemplateRows(state.tRows)
-    setTemplateCols(state.tCols)
-    setTemplate(state.tmpl)
-    setTemplatePreset(state.preset)
-    setCells(state.cells)
+    const s = decodeGrid(hash)
+    if (!s) return
+    setLayoutKey(s.layoutKey); setGroutColor(s.grout); setTileSize(s.tileSize); setGroutWidth(s.groutWidth); setGrid(s.grid)
   }, [])
 
   // ── Layout switch ──
   const switchLayout = useCallback((key: 'staircase' | 'grid') => {
     const l = LAYOUTS[key]
-    setCells(makeGrid(l.rows, l.cols, PATTERNS.find(p => p.key === l.defaultPattern)!.fn))
+    setGrid(fillWithSquares(l.rows, l.cols, 0, 2))
     setLayoutKey(key)
   }, [])
 
-  // ── Template slot assignment ──
-  const setTemplateSlot = useCallback((r: number, c: number) => {
-    setTemplate(prev => prev.map((row, ri) =>
-      row.map((cell, ci) => (ri === r && ci === c) ? { ...cell, typeIndex: selectedType } : cell)
-    ))
-  }, [selectedType])
-
-  // ── Template slot rotation ──
-  const rotateTemplateSlot = useCallback((r: number, c: number) => {
-    setTemplate(prev => prev.map((row, ri) =>
-      row.map((cell, ci) =>
-        ri === r && ci === c
-          ? { ...cell, rotation: ((cell.rotation + 1) % 4) as Rotation }
-          : cell
-      )
-    ))
-  }, [])
-
-  // ── Template resize (preserve existing slots where possible) ──
-  const resizeTemplate = useCallback((newRows: number, newCols: number) => {
-    setTemplate(prev =>
-      Array.from({ length: newRows }, (_, r) =>
-        Array.from({ length: newCols }, (_, c) => prev[r]?.[c] ?? { typeIndex: 0, rotation: 0 as Rotation })
-      )
-    )
-    setTemplateRows(newRows)
-    setTemplateCols(newCols)
-    setTemplatePreset(TEMPLATE_PRESETS.find(p => p.rows === newRows && p.cols === newCols)?.label ?? '')
-  }, [])
-
-  // ── Pattern apply ──
+  // ── Apply rotation pattern to all 2×2 arc tiles ──
   const applyPattern = useCallback((fn: PatternFn) => {
-    setCells(prev => prev.map((row, r) => row.map((cell, c) => ({ ...cell, rotation: fn(r, c) }))))
-  }, [])
-
-  const randomize = useCallback(() => {
-    setCells(prev => prev.map(row => row.map(cell => ({
-      ...cell, rotation: Math.floor(Math.random() * 4) as Rotation,
-    }))))
-  }, [])
-
-  // ── Left-click: paint with selected type ──
-  const handleTilePaint = useCallback((r: number, c: number) => {
-    setCells(prev => prev.map((row, ri) =>
-      row.map((cell, ci) => {
-        if (ri !== r || ci !== c) return cell
-        const tmplType = template[r % templateRows][c % templateCols].typeIndex
-        return {
-          ...cell,
-          typeOverride: selectedType === tmplType ? undefined : selectedType,
-        }
-      })
-    ))
-  }, [selectedType, template, templateRows, templateCols])
-
-  // ── Right-click: rotate ──
-  const handleTileRotate = useCallback((r: number, c: number) => {
-    setCells(prev => prev.map((row, ri) =>
-      row.map((cell, ci) => {
-        if (ri !== r || ci !== c) return cell
-        return { ...cell, rotation: ((cell.rotation + 1) % 4) as Rotation }
-      })
-    ))
-  }, [])
-
-  // ── Middle-click: reset cell to template ──
-  const handleTileReset = useCallback((r: number, c: number) => {
-    setCells(prev => prev.map((row, ri) =>
-      row.map((cell, ci) => {
-        if (ri !== r || ci !== c) return cell
-        return { rotation: 0 as Rotation }
-      })
-    ))
-  }, [])
-
-  // ── Reset all overrides ──
-  const resetAllOverrides = useCallback(() => {
-    setCells(prev => prev.map(row => row.map(cell => ({
-      rotation: cell.rotation,
-    }))))
-  }, [])
-
-  // ── Stamp tool: drag-select a region, then repeat it ──
-  const [stampMode, setStampMode] = useState(false)
-  const [selection, setSelection] = useState<{ r1: number; c1: number; r2: number; c2: number } | null>(null)
-  const [dragStart, setDragStart] = useState<{ r: number; c: number } | null>(null)
-
-  const cellFromEvent = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
-    const rect = svgRef.current!.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
-    const cs = tileSize + groutWidth
-    return {
-      r: Math.max(0, Math.min(Math.floor(y / cs), rows - 1)),
-      c: Math.max(0, Math.min(Math.floor(x / cs), cols - 1)),
-    }
-  }, [tileSize, groutWidth, rows, cols])
-
-  const handleStampMouseDown = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
-    if (!stampMode || e.button !== 0) return
-    const { r, c } = cellFromEvent(e)
-    setDragStart({ r, c })
-    setSelection({ r1: r, c1: c, r2: r, c2: c })
-  }, [stampMode, cellFromEvent])
-
-  const handleStampMouseMove = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
-    if (!dragStart) return
-    const { r, c } = cellFromEvent(e)
-    setSelection({
-      r1: Math.min(dragStart.r, r), c1: Math.min(dragStart.c, c),
-      r2: Math.max(dragStart.r, r), c2: Math.max(dragStart.c, c),
-    })
-  }, [dragStart, cellFromEvent])
-
-  const handleStampMouseUp = useCallback(() => {
-    setDragStart(null)
-  }, [])
-
-  // Get the effective type+rotation for a cell (resolving template + overrides)
-  const getEffectiveCell = useCallback((r: number, c: number) => {
-    const cell = cells[r]?.[c]
-    if (!cell) return { typeIndex: 0, rotation: 0 as Rotation }
-    const tmplCell = template[r % templateRows][c % templateCols]
-    const typeIndex = cell.typeOverride ?? tmplCell.typeIndex
-    const rotation = ((cell.rotation + tmplCell.rotation) % 4) as Rotation
-    return { typeIndex, rotation }
-  }, [cells, template, templateRows, templateCols])
-
-  // Repeat the selection in a direction
-  const repeatSelection = useCallback((dir: 'right' | 'left' | 'down' | 'up') => {
-    if (!selection) return
-    const { r1, c1, r2, c2 } = selection
-    const sw = c2 - c1 + 1  // stamp width
-    const sh = r2 - r1 + 1  // stamp height
-
-    // Capture the stamp pattern (effective type + rotation)
-    const stamp: { typeIndex: number; rotation: Rotation }[][] = []
-    for (let dr = 0; dr < sh; dr++) {
-      const row: { typeIndex: number; rotation: Rotation }[] = []
-      for (let dc = 0; dc < sw; dc++) {
-        row.push(getEffectiveCell(r1 + dr, c1 + dc))
-      }
-      stamp.push(row)
-    }
-
-    setCells(prev => {
-      const next = prev.map(row => row.map(cell => ({ ...cell })))
-      // Fill in the repeat direction
-      const applyStamp = (startR: number, startC: number) => {
-        for (let dr = 0; dr < sh; dr++) {
-          for (let dc = 0; dc < sw; dc++) {
-            const tr = startR + dr, tc = startC + dc
-            if (tr < 0 || tr >= rows || tc < 0 || tc >= cols) continue
-            if (mask && !mask[tr]?.[tc]) continue
-            // Skip the original selection
-            if (tr >= r1 && tr <= r2 && tc >= c1 && tc <= c2) continue
-            const s = stamp[dr][dc]
-            next[tr][tc] = { typeOverride: s.typeIndex, rotation: s.rotation }
+    setGrid(prev => {
+      const next = prev.map(row => [...row])
+      for (let r = 0; r < next.length; r++) {
+        for (let c = 0; c < (next[0]?.length ?? 0); c++) {
+          if (!isAnchor(next, r, c)) continue
+          const cell = next[r][c]!
+          const tile = TILE_TYPES[cell.tile.typeIndex]
+          if (!tile.rotatable) continue
+          const tileR = Math.floor(r / 2), tileC = Math.floor(c / 2)
+          const newRot = fn(tileR, tileC)
+          const placed: PlacedTile = { typeIndex: cell.tile.typeIndex, rotation: newRot }
+          for (let dr = 0; dr < tile.h; dr++) {
+            for (let dc = 0; dc < tile.w; dc++) {
+              next[r + dr][c + dc] = { tile: placed, anchorR: r, anchorC: c }
+            }
           }
         }
       }
-      if (dir === 'right') {
-        for (let startC = c1 + sw; startC < cols; startC += sw) applyStamp(r1, startC)
-      } else if (dir === 'left') {
-        for (let startC = c1 - sw; startC >= -sw + 1; startC -= sw) applyStamp(r1, startC)
-      } else if (dir === 'down') {
-        for (let startR = r1 + sh; startR < rows; startR += sh) applyStamp(startR, c1)
-      } else if (dir === 'up') {
-        for (let startR = r1 - sh; startR >= -sh + 1; startR -= sh) applyStamp(startR, c1)
-      }
       return next
     })
-  }, [selection, rows, cols, mask, getEffectiveCell])
+  }, [])
 
-  // Repeat in ALL directions (fill the grid)
-  const repeatAll = useCallback(() => {
-    if (!selection) return
-    const { r1, c1, r2, c2 } = selection
-    const sw = c2 - c1 + 1
-    const sh = r2 - r1 + 1
-    const stamp: { typeIndex: number; rotation: Rotation }[][] = []
-    for (let dr = 0; dr < sh; dr++) {
-      const row: { typeIndex: number; rotation: Rotation }[] = []
-      for (let dc = 0; dc < sw; dc++) {
-        row.push(getEffectiveCell(r1 + dr, c1 + dc))
-      }
-      stamp.push(row)
-    }
-    setCells(prev => {
-      const next = prev.map(row => row.map(cell => ({ ...cell })))
-      for (let r = 0; r < rows; r++) {
-        for (let c = 0; c < cols; c++) {
-          if (mask && !mask[r]?.[c]) continue
-          if (r >= r1 && r <= r2 && c >= c1 && c <= c2) continue
-          const sr = ((r - r1) % sh + sh) % sh
-          const sc = ((c - c1) % sw + sw) % sw
-          const s = stamp[sr][sc]
-          next[r][c] = { typeOverride: s.typeIndex, rotation: s.rotation }
+  // ── Click: place tile at cell ──
+  const handleClick = useCallback((r: number, c: number) => {
+    setGrid(prev => placeTile(prev, r, c, selectedType, 2))
+  }, [selectedType])
+
+  // ── Right-click: rotate (arc tiles only) ──
+  const handleRotate = useCallback((r: number, c: number) => {
+    setGrid(prev => {
+      const cell = prev[r]?.[c]
+      if (!cell) return prev
+      const anchor = prev[cell.anchorR]?.[cell.anchorC]
+      if (!anchor) return prev
+      const tile = TILE_TYPES[anchor.tile.typeIndex]
+      if (!tile.rotatable) return prev
+      const newRot = ((anchor.tile.rotation + 1) % 4) as Rotation
+      const next = prev.map(row => [...row])
+      const placed: PlacedTile = { typeIndex: anchor.tile.typeIndex, rotation: newRot }
+      for (let dr = 0; dr < tile.h; dr++) {
+        for (let dc = 0; dc < tile.w; dc++) {
+          next[cell.anchorR + dr][cell.anchorC + dc] = { tile: placed, anchorR: cell.anchorR, anchorC: cell.anchorC }
         }
       }
       return next
     })
-  }, [selection, rows, cols, mask, getEffectiveCell])
+  }, [])
 
   // ── SVG export ──
   const downloadSVG = useCallback(() => {
@@ -748,36 +410,153 @@ export function App() {
     URL.revokeObjectURL(url)
   }, [layoutKey])
 
-  // ── Sizes ──
-  const cellSize  = tileSize + groutWidth
-  const svgWidth  = cols * cellSize + groutWidth
-  const svgHeight = rows * cellSize + groutWidth
+  // ── Stamp tool ──
+  const [selection, setSelection] = useState<{ r1: number; c1: number; r2: number; c2: number } | null>(null)
+  const [dragStart, setDragStart] = useState<{ r: number; c: number } | null>(null)
 
-  const btnBase: React.CSSProperties = {
-    padding: '5px 4px', fontSize: 11, background: '#f4f4f4',
-    border: '1px solid #e8e8e8', borderRadius: 4, cursor: 'pointer', color: '#333',
-  }
+  const halfPitch = (tileSize + groutWidth) / 2
+  const svgWidth = cols * halfPitch + groutWidth
+  const svgHeight = rows * halfPitch + groutWidth
+
+  const cellFromEvent = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+    const rect = svgRef.current!.getBoundingClientRect()
+    return {
+      r: Math.max(0, Math.min(Math.floor((e.clientY - rect.top) / halfPitch), rows - 1)),
+      c: Math.max(0, Math.min(Math.floor((e.clientX - rect.left) / halfPitch), cols - 1)),
+    }
+  }, [halfPitch, rows, cols])
+
+  const onMouseDown = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+    if (!e.shiftKey || e.button !== 0) return
+    e.preventDefault()
+    const { r, c } = cellFromEvent(e)
+    setDragStart({ r, c }); setSelection({ r1: r, c1: c, r2: r, c2: c })
+  }, [cellFromEvent])
+
+  const onMouseMove = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+    if (!dragStart) return
+    const { r, c } = cellFromEvent(e)
+    setSelection({ r1: Math.min(dragStart.r, r), c1: Math.min(dragStart.c, c), r2: Math.max(dragStart.r, r), c2: Math.max(dragStart.c, c) })
+  }, [dragStart, cellFromEvent])
+
+  const onMouseUp = useCallback(() => { setDragStart(null) }, [])
+
+  // Capture stamp from selection
+  const captureStamp = useCallback(() => {
+    if (!selection) return null
+    const { r1, c1, r2, c2 } = selection
+    const stamp: (GridCell | null)[][] = []
+    for (let r = r1; r <= r2; r++) {
+      const row: (GridCell | null)[] = []
+      for (let c = c1; c <= c2; c++) { row.push(grid[r]?.[c] ?? null) }
+      stamp.push(row)
+    }
+    return stamp
+  }, [selection, grid])
+
+  const repeatSelection = useCallback((dir: 'right' | 'left' | 'down' | 'up') => {
+    const stamp = captureStamp()
+    if (!stamp || !selection) return
+    const { r1, c1, r2, c2 } = selection
+    const sw = c2 - c1 + 1, sh = r2 - r1 + 1
+    setGrid(prev => {
+      const next = prev.map(row => [...row])
+      const applyAt = (sr: number, sc: number) => {
+        for (let dr = 0; dr < sh; dr++) {
+          for (let dc = 0; dc < sw; dc++) {
+            const tr = sr + dr, tc = sc + dc
+            if (tr < 0 || tr >= rows || tc < 0 || tc >= cols) continue
+            if (mask && !mask[tr]?.[tc]) continue
+            const src = stamp[dr][dc]
+            if (src && isAnchor(prev, src.anchorR, src.anchorC) && src.anchorR === r1 + dr && src.anchorC === c1 + dc) {
+              // This is an anchor — place the tile at the new position
+              const tile = TILE_TYPES[src.tile.typeIndex]
+              const placed = src.tile
+              for (let tdr = 0; tdr < tile.h; tdr++) {
+                for (let tdc = 0; tdc < tile.w; tdc++) {
+                  const fr = tr + tdr, fc = tc + tdc
+                  if (fr >= 0 && fr < rows && fc >= 0 && fc < cols) {
+                    next[fr][fc] = { tile: placed, anchorR: tr, anchorC: tc }
+                  }
+                }
+              }
+            } else if (!src) {
+              next[tr][tc] = null
+            }
+          }
+        }
+      }
+      if (dir === 'right') for (let sc = c1 + sw; sc < cols; sc += sw) applyAt(r1, sc)
+      else if (dir === 'left') for (let sc = c1 - sw; sc >= -sw + 1; sc -= sw) applyAt(r1, sc)
+      else if (dir === 'down') for (let sr = r1 + sh; sr < rows; sr += sh) applyAt(sr, c1)
+      else if (dir === 'up') for (let sr = r1 - sh; sr >= -sh + 1; sr -= sh) applyAt(sr, c1)
+      return next
+    })
+  }, [captureStamp, selection, rows, cols, mask])
+
+  const repeatAll = useCallback(() => {
+    const stamp = captureStamp()
+    if (!stamp || !selection) return
+    const { r1, c1, r2, c2 } = selection
+    const sw = c2 - c1 + 1, sh = r2 - r1 + 1
+    setGrid(prev => {
+      const next = prev.map(row => [...row])
+      for (let sr = 0; sr < rows; sr += sh) {
+        for (let sc = 0; sc < cols; sc += sw) {
+          if (sr === r1 && sc === c1) continue // skip original
+          for (let dr = 0; dr < sh; dr++) {
+            for (let dc = 0; dc < sw; dc++) {
+              const tr = sr + dr, tc = sc + dc
+              if (tr >= rows || tc >= cols) continue
+              if (mask && !mask[tr]?.[tc]) continue
+              const src = stamp[dr]?.[dc]
+              if (src && src.anchorR === r1 + dr && src.anchorC === c1 + dc) {
+                const tile = TILE_TYPES[src.tile.typeIndex]
+                for (let tdr = 0; tdr < tile.h; tdr++) {
+                  for (let tdc = 0; tdc < tile.w; tdc++) {
+                    const fr = tr + tdr, fc = tc + tdc
+                    if (fr >= 0 && fr < rows && fc >= 0 && fc < cols) {
+                      next[fr][fc] = { tile: src.tile, anchorR: tr, anchorC: tc }
+                    }
+                  }
+                }
+              } else if (!src) {
+                next[tr][tc] = null
+              }
+            }
+          }
+        }
+      }
+      return next
+    })
+  }, [captureStamp, selection, rows, cols, mask])
+
+  const btnBase: React.CSSProperties = { padding: '5px 4px', fontSize: 11, background: '#f4f4f4', border: '1px solid #e8e8e8', borderRadius: 4, cursor: 'pointer', color: '#333' }
   const btnActive: React.CSSProperties = { ...btnBase, background: '#111', color: 'white', border: '1px solid #111' }
+
+  // ── Render ──
+  // Collect anchor tiles for rendering
+  const anchors: { r: number; c: number; cell: GridCell }[] = []
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (isAnchor(grid, r, c)) anchors.push({ r, c, cell: grid[r][c]! })
+    }
+  }
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', fontFamily: "'Inter', system-ui, sans-serif" }}>
-
       {/* ── Sidebar ── */}
-      <div style={{ width: 264, background: 'white', borderRight: '1px solid #e8e8e8', display: 'flex', flexDirection: 'column', overflow: 'hidden', flexShrink: 0 }}>
-
-        {/* Header */}
+      <div style={{ width: 280, background: 'white', borderRight: '1px solid #e8e8e8', display: 'flex', flexDirection: 'column', overflow: 'hidden', flexShrink: 0 }}>
         <div style={{ padding: '16px 18px 12px', borderBottom: '1px solid #f0f0f0' }}>
           <div style={{ fontSize: 15, fontWeight: 700, color: '#111', marginBottom: 1 }}>Tile Visualizer</div>
           <div style={{ fontSize: 10, color: '#999', marginBottom: 8 }}>Kat+Roger 6×6 Arc · Pratt &amp; Larson</div>
           <div style={{ fontSize: 9, color: '#aaa', lineHeight: 1.5 }}>
-            Pick a tile, then left-click to paint and right-click to rotate. Use the template to set a repeating pattern, or browse the Design Library for curated layouts. Save your favorites with "My Designs", or copy the URL to bookmark or share.
+            Left-click to place tiles, right-click to rotate arcs. Shift+drag to select a region, then repeat it in any direction.
           </div>
           <div style={{ fontSize: 9, color: '#ccc', marginTop: 6 }}>Made with ❤️ for Maryna</div>
         </div>
 
-        {/* Controls */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '14px 18px' }}>
-
           {/* Layout */}
           <div style={{ marginBottom: 18 }}>
             <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.7px', color: '#666', marginBottom: 7 }}>Layout</div>
@@ -790,59 +569,42 @@ export function App() {
             </div>
           </div>
 
-          {/* Tile type palette */}
-          <TileTypePicker
-            size={36}
-            selected={selectedType}
-            onSelect={setSelectedType}
-          />
-
-          {/* Template editor */}
-          <TemplateEditor
-            template={template}
-            tileSize={36}
-            groutColor={groutColor}
-            selectedType={selectedType}
-            onSetSlot={setTemplateSlot}
-            onRotateSlot={rotateTemplateSlot}
-            onResize={resizeTemplate}
-            activePreset={templatePreset}
-          />
+          {/* Tile picker */}
+          <TileTypePicker selected={selectedType} onSelect={setSelectedType} />
 
           <GroutPicker selected={groutColor} onSelect={setGroutColor} />
 
-          {/* Stamp tool */}
+          {/* Stamp & Fill */}
           <div style={{ marginBottom: 18 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.7px', color: '#666', marginBottom: 7 }}>Stamp Tool</div>
-            <button onClick={() => { setStampMode(!stampMode); if (stampMode) setSelection(null) }}
-              style={stampMode ? { ...btnActive, width: '100%', padding: '6px 0', marginBottom: 6 } : { ...btnBase, width: '100%', padding: '6px 0', marginBottom: 6 }}>
-              {stampMode ? '✓ Select Mode ON' : 'Select Region'}
-            </button>
-            {stampMode && (
-              <div style={{ fontSize: 9, color: '#888', marginBottom: 6 }}>
-                {selection ? `Selected ${selection.c2-selection.c1+1}×${selection.r2-selection.r1+1} — repeat:` : 'Drag on the grid to select a region'}
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.7px', color: '#666', marginBottom: 7 }}>Stamp &amp; Fill</div>
+            {!selection ? (
+              <div style={{ fontSize: 10, color: '#888', lineHeight: 1.5 }}>
+                <strong>Shift+drag</strong> on the grid to select, then repeat.
               </div>
-            )}
-            {selection && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, marginBottom: 6 }}>
-                <button onClick={() => repeatSelection('left')} style={btnBase}>← Left</button>
-                <button onClick={() => repeatSelection('right')} style={btnBase}>→ Right</button>
-                <button onClick={() => repeatSelection('up')} style={btnBase}>↑ Up</button>
-                <button onClick={() => repeatSelection('down')} style={btnBase}>↓ Down</button>
-                <button onClick={repeatAll} style={{ ...btnBase, gridColumn: '1 / -1' }}>Fill All</button>
-                <button onClick={() => setSelection(null)} style={{ ...btnBase, gridColumn: '1 / -1', color: '#999' }}>Clear Selection</button>
-              </div>
+            ) : (
+              <>
+                <div style={{ fontSize: 10, color: '#333', marginBottom: 6, fontWeight: 600 }}>
+                  {selection.c2 - selection.c1 + 1} × {selection.r2 - selection.r1 + 1} cells selected
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+                  <button onClick={() => repeatSelection('left')} style={btnBase}>← Left</button>
+                  <button onClick={() => repeatSelection('right')} style={btnBase}>→ Right</button>
+                  <button onClick={() => repeatSelection('up')} style={btnBase}>↑ Up</button>
+                  <button onClick={() => repeatSelection('down')} style={btnBase}>↓ Down</button>
+                  <button onClick={repeatAll} style={{ ...btnBase, gridColumn: '1 / -1', fontWeight: 600 }}>Fill All</button>
+                  <button onClick={() => setSelection(null)} style={{ ...btnBase, gridColumn: '1 / -1', color: '#999' }}>Clear</button>
+                </div>
+              </>
             )}
           </div>
 
-          {/* Patterns */}
+          {/* Rotation patterns */}
           <div style={{ marginBottom: 18 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.7px', color: '#666', marginBottom: 7 }}>Patterns</div>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.7px', color: '#666', marginBottom: 7 }}>Rotation Patterns</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
               {PATTERNS.map(p => (
                 <button key={p.key} onClick={() => applyPattern(p.fn)} style={btnBase}>{p.label}</button>
               ))}
-              <button onClick={randomize} style={btnBase}>✦ Random</button>
             </div>
           </div>
 
@@ -858,15 +620,9 @@ export function App() {
 
           <SavedDesigns onLoad={loadDesign} currentHash={currentHash} />
 
-          <DesignLibrary onLoad={loadDesign} />
-
-          <button onClick={resetAllOverrides} style={{ width: '100%', padding: '8px 0', fontSize: 11, fontWeight: 600, background: '#f4f4f4', border: '1px solid #e0e0e0', borderRadius: 4, cursor: 'pointer', color: '#333', marginBottom: 6 }}>
-            Reset Overrides
-          </button>
           <button onClick={downloadSVG} style={{ width: '100%', padding: '8px 0', fontSize: 11, fontWeight: 600, background: '#f4f4f4', border: '1px solid #e0e0e0', borderRadius: 4, cursor: 'pointer', color: '#333', marginBottom: 10 }}>
             ↓ Export SVG
           </button>
-          <div style={{ fontSize: 10, color: '#ccc', lineHeight: 1.5 }}>Left-click to paint · right-click to rotate<br />Shift-click to reset a single tile</div>
         </div>
       </div>
 
@@ -874,56 +630,54 @@ export function App() {
       <div style={{ flex: 1, overflow: 'auto', background: '#f0f0f0', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: 40 }}
         onContextMenu={e => e.preventDefault()}>
         <svg id="canvas" ref={svgRef} width={svgWidth} height={svgHeight}
-          style={{ background: 'white', boxShadow: '0 2px 16px rgba(0,0,0,0.10)', display: 'block' }}
+          style={{ background: groutColor, boxShadow: '0 2px 16px rgba(0,0,0,0.10)', display: 'block' }}
           xmlns="http://www.w3.org/2000/svg"
-          onMouseDown={handleStampMouseDown}
-          onMouseMove={handleStampMouseMove}
-          onMouseUp={handleStampMouseUp}
-          onMouseLeave={handleStampMouseUp}>
-          {cells.slice(0, rows).flatMap((row, r) =>
-            row.slice(0, cols).map((cell, c) => {
-              if (mask && !mask[r]?.[c]) return null
-              const tx = c * cellSize + groutWidth
-              const ty = r * cellSize + groutWidth
-              const tmplCell = template[r % templateRows][c % templateCols]
-              const typeIdx = cell.typeOverride ?? tmplCell.typeIndex
-              const tile = TILE_TYPES[typeIdx]
-              return (
-                <g key={`${r}-${c}`}>
-                  <rect x={c*cellSize} y={r*cellSize} width={cellSize+groutWidth} height={cellSize+groutWidth} fill={groutColor} />
-                  <g transform={`translate(${tx},${ty})`}
-                    onClick={e => { if (stampMode) return; e.shiftKey ? handleTileReset(r, c) : handleTilePaint(r, c) }}
-                    onContextMenu={e => { e.preventDefault(); if (!stampMode) handleTileRotate(r, c) }}
-                    style={{ cursor: stampMode ? 'crosshair' : 'pointer' }}>
-                    {tile.image ? (
-                      /* Square arc tile with product photo */
-                      <g transform={`rotate(${imgRot(((cell.rotation + tmplCell.rotation) % 4) as Rotation)},${tileSize/2},${tileSize/2})`}>
-                        <image href={`${import.meta.env.BASE_URL}tiles/${tile.image}`} width={tileSize} height={tileSize} />
-                      </g>
-                    ) : tile.bgImage ? (
-                      /* Solid rectangle tile with glaze texture */
-                      <image href={`${import.meta.env.BASE_URL}tiles/${tile.bgImage}`} width={tileSize} height={tileSize} preserveAspectRatio="xMidYMid slice" />
-                    ) : (
-                      /* Fallback solid color */
-                      <rect width={tileSize} height={tileSize} fill={tile.background} />
-                    )}
-                  </g>
-                </g>
-              )
+          onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp} onMouseLeave={onMouseUp}>
+
+          {/* White out masked area */}
+          {mask && Array.from({ length: rows }, (_, r) =>
+            Array.from({ length: cols }, (_, c) => {
+              if (mask[r]?.[c]) return null
+              return <rect key={`m${r}-${c}`} x={c * halfPitch} y={r * halfPitch} width={halfPitch} height={halfPitch} fill="white" />
             })
           )}
-          {/* Selection highlight overlay */}
+
+          {/* Render tiles at anchors */}
+          {anchors.map(({ r, c, cell }) => {
+            if (mask && !mask[r]?.[c]) return null
+            const tile = TILE_TYPES[cell.tile.typeIndex]
+            const tw = tile.w * halfPitch - groutWidth
+            const th = tile.h * halfPitch - groutWidth
+            const px = c * halfPitch + groutWidth
+            const py = r * halfPitch + groutWidth
+            return (
+              <g key={`${r}-${c}`}
+                onClick={e => { if (e.shiftKey) return; handleClick(r, c) }}
+                onContextMenu={e => { e.preventDefault(); handleRotate(r, c) }}
+                style={{ cursor: 'pointer' }}>
+                {tile.image ? (
+                  <g transform={`translate(${px},${py})`}>
+                    <g transform={`rotate(${imgRot(cell.tile.rotation)},${tw / 2},${th / 2})`}>
+                      <image href={`${import.meta.env.BASE_URL}tiles/${tile.image}`} width={tw} height={th} />
+                    </g>
+                  </g>
+                ) : tile.bgImage ? (
+                  <image href={`${import.meta.env.BASE_URL}tiles/${tile.bgImage}`} x={px} y={py} width={tw} height={th} preserveAspectRatio="xMidYMid slice" />
+                ) : (
+                  <rect x={px} y={py} width={tw} height={th} fill={tile.background} />
+                )}
+              </g>
+            )
+          })}
+
+          {/* Selection overlay */}
           {selection && (
             <rect
-              x={selection.c1 * cellSize + groutWidth / 2}
-              y={selection.r1 * cellSize + groutWidth / 2}
-              width={(selection.c2 - selection.c1 + 1) * cellSize}
-              height={(selection.r2 - selection.r1 + 1) * cellSize}
-              fill="none"
-              stroke="#2080ff"
-              strokeWidth={2}
-              strokeDasharray="6 3"
-              pointerEvents="none"
+              x={selection.c1 * halfPitch + groutWidth / 2}
+              y={selection.r1 * halfPitch + groutWidth / 2}
+              width={(selection.c2 - selection.c1 + 1) * halfPitch}
+              height={(selection.r2 - selection.r1 + 1) * halfPitch}
+              fill="none" stroke="#2080ff" strokeWidth={2} strokeDasharray="6 3" pointerEvents="none"
             />
           )}
         </svg>
