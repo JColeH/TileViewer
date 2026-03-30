@@ -10,27 +10,47 @@ interface TileType {
   name: string
   background: string
   arc: string
-  image: string
+  image?: string          // full tile photo (square tiles)
+  bgImage?: string        // background glaze texture (rectangle tiles)
+  arcImage?: string       // arc glaze texture (rectangle tiles)
+  subW: number            // width in sub-cells at rotation 0 (2=square, 1=half)
+  subH: number            // height in sub-cells at rotation 0
+}
+
+// Effective sub-cell size after rotation (odd rotations swap w/h)
+function tileDims(t: TileType, rot: Rotation): { w: number; h: number } {
+  return (rot === 1 || rot === 3) ? { w: t.subH, h: t.subW } : { w: t.subW, h: t.subH }
 }
 
 // Images are naturally oriented with arc at bottom-right.
 // To show rotation r, we rotate the image by ((r - 2 + 4) % 4) * 90 degrees.
 function imgRot(r: Rotation): number { return ((r - 2 + 4) % 4) * 90 }
 
-// Images are naturally oriented with arc at bottom-right (rotation 2 in display terms)
+// ─── Square tiles (2×2 sub-cells) — use product photos ─────────────────────
 const TILE_TYPES: TileType[] = [
-  { name: 'Birch / Denim',      background: '#EAE2D6', arc: '#9898A8', image: 'Kat-Roger-6x6-arc-Birch-Denim-230x230.jpg' },
-  { name: 'Birch / Dune',       background: '#EAE2D6', arc: '#DECAB0', image: 'Kat-Roger-6x6-arc-Birch-Dune-230x230.jpg' },
-  { name: 'Denim / Birch',      background: '#9898A8', arc: '#EAE2D6', image: 'Kat-Roger-6x6-arc-Denim-Birch-230x230.jpg' },
-  { name: 'Dune / Birch',       background: '#DECAB0', arc: '#EAE2D6', image: 'Kat-Roger-6x6-arc-Dune-Birch-230x230.jpg' },
-  { name: 'Basalt / Dune',      background: '#302828', arc: '#DECAB0', image: 'Kat-Roger-6x6-arc-Basalt-Dune-230x230.jpg' },
-  { name: 'Storm / Birch',      background: '#888880', arc: '#EAE2D6', image: 'Kat-Roger-6x6-arc-Storm-Birch-230x230.jpg' },
-  { name: 'Sunbeam / Denim',    background: '#C89030', arc: '#9898A8', image: 'Kat-Roger-6x6-arc-Sunbeam-Denim-230x230.jpg' },
-  { name: 'Surf / Sunbeam',     background: '#486878', arc: '#C89030', image: 'Kat-Roger-6x6-arc-Surf-Sunbeam-230x230.jpg' },
-  { name: 'Redwood / Coral',    background: '#782828', arc: '#C87858', image: 'Kat-Roger-6x6-arc-Redwood-Coral-230x230.jpg' },
-  { name: 'Redwood / Dune',     background: '#782828', arc: '#DECAB0', image: 'Kat-Roger-6x6-arc-Redwood-Dune-230x230.jpg' },
-  { name: 'Redwood / Sunbeam',  background: '#782828', arc: '#C89030', image: 'Kat-Roger-6x6-arc-Redwood-Sunbeam-2-230x230.jpg' },
-  { name: 'Redwood / Surf',     background: '#782828', arc: '#486878', image: 'Kat-Roger-6x6-arc-Redwood-Surf-230x230.jpg' },
+  { name: 'Birch / Denim',      background: '#EAE2D6', arc: '#9898A8', image: 'Kat-Roger-6x6-arc-Birch-Denim-230x230.jpg', subW: 2, subH: 2 },
+  { name: 'Birch / Dune',       background: '#EAE2D6', arc: '#DECAB0', image: 'Kat-Roger-6x6-arc-Birch-Dune-230x230.jpg', subW: 2, subH: 2 },
+  { name: 'Denim / Birch',      background: '#9898A8', arc: '#EAE2D6', image: 'Kat-Roger-6x6-arc-Denim-Birch-230x230.jpg', subW: 2, subH: 2 },
+  { name: 'Dune / Birch',       background: '#DECAB0', arc: '#EAE2D6', image: 'Kat-Roger-6x6-arc-Dune-Birch-230x230.jpg', subW: 2, subH: 2 },
+  { name: 'Basalt / Dune',      background: '#302828', arc: '#DECAB0', image: 'Kat-Roger-6x6-arc-Basalt-Dune-230x230.jpg', subW: 2, subH: 2 },
+  { name: 'Storm / Birch',      background: '#888880', arc: '#EAE2D6', image: 'Kat-Roger-6x6-arc-Storm-Birch-230x230.jpg', subW: 2, subH: 2 },
+  { name: 'Sunbeam / Denim',    background: '#C89030', arc: '#9898A8', image: 'Kat-Roger-6x6-arc-Sunbeam-Denim-230x230.jpg', subW: 2, subH: 2 },
+  { name: 'Surf / Sunbeam',     background: '#486878', arc: '#C89030', image: 'Kat-Roger-6x6-arc-Surf-Sunbeam-230x230.jpg', subW: 2, subH: 2 },
+  { name: 'Redwood / Coral',    background: '#782828', arc: '#C87858', image: 'Kat-Roger-6x6-arc-Redwood-Coral-230x230.jpg', subW: 2, subH: 2 },
+  { name: 'Redwood / Dune',     background: '#782828', arc: '#DECAB0', image: 'Kat-Roger-6x6-arc-Redwood-Dune-230x230.jpg', subW: 2, subH: 2 },
+  { name: 'Redwood / Sunbeam',  background: '#782828', arc: '#C89030', image: 'Kat-Roger-6x6-arc-Redwood-Sunbeam-2-230x230.jpg', subW: 2, subH: 2 },
+  { name: 'Redwood / Surf',     background: '#782828', arc: '#486878', image: 'Kat-Roger-6x6-arc-Redwood-Surf-230x230.jpg', subW: 2, subH: 2 },
+  // ─── Rectangle tiles (1×2 sub-cells) — glaze texture + SVG arc ────────────
+  { name: 'Rect Birch / Denim',   background: '#EAE2D6', arc: '#9898A8', subW: 1, subH: 2, bgImage: 'glaze/Birch.jpg', arcImage: 'glaze/Denim.jpg' },
+  { name: 'Rect Denim / Birch',   background: '#9898A8', arc: '#EAE2D6', subW: 1, subH: 2, bgImage: 'glaze/Denim.jpg', arcImage: 'glaze/Birch.jpg' },
+  { name: 'Rect Basalt / Dune',   background: '#302828', arc: '#DECAB0', subW: 1, subH: 2, bgImage: 'glaze/Basalt.jpg', arcImage: 'glaze/Dune.jpg' },
+  { name: 'Rect Surf / Sunbeam',  background: '#486878', arc: '#C89030', subW: 1, subH: 2, bgImage: 'glaze/Surf.jpg', arcImage: 'glaze/Sunbeam.jpg' },
+  { name: 'Rect Redwood / Coral', background: '#782828', arc: '#C87858', subW: 1, subH: 2, bgImage: 'glaze/Redwood.jpg', arcImage: 'glaze/Coral.jpg' },
+  { name: 'Rect Storm / Birch',   background: '#888880', arc: '#EAE2D6', subW: 1, subH: 2, bgImage: 'glaze/storm.jpg', arcImage: 'glaze/Birch.jpg' },
+  { name: 'Rect Redwood / Surf',  background: '#782828', arc: '#486878', subW: 1, subH: 2, bgImage: 'glaze/Redwood.jpg', arcImage: 'glaze/Surf.jpg' },
+  { name: 'Rect Dune / Birch',    background: '#DECAB0', arc: '#EAE2D6', subW: 1, subH: 2, bgImage: 'glaze/Dune.jpg', arcImage: 'glaze/Birch.jpg' },
+  { name: 'Rect Sunbeam / Denim', background: '#C89030', arc: '#9898A8', subW: 1, subH: 2, bgImage: 'glaze/Sunbeam.jpg', arcImage: 'glaze/Denim.jpg' },
+  { name: 'Rect Birch / Dune',    background: '#EAE2D6', arc: '#DECAB0', subW: 1, subH: 2, bgImage: 'glaze/Birch.jpg', arcImage: 'glaze/Dune.jpg' },
 ]
 
 // ─── Cell ────────────────────────────────────────────────────────────────────
@@ -589,6 +609,128 @@ export function App() {
     }))))
   }, [])
 
+  // ── Stamp tool: drag-select a region, then repeat it ──
+  const [stampMode, setStampMode] = useState(false)
+  const [selection, setSelection] = useState<{ r1: number; c1: number; r2: number; c2: number } | null>(null)
+  const [dragStart, setDragStart] = useState<{ r: number; c: number } | null>(null)
+
+  const cellFromEvent = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+    const rect = svgRef.current!.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
+    const cs = tileSize + groutWidth
+    return {
+      r: Math.max(0, Math.min(Math.floor(y / cs), rows - 1)),
+      c: Math.max(0, Math.min(Math.floor(x / cs), cols - 1)),
+    }
+  }, [tileSize, groutWidth, rows, cols])
+
+  const handleStampMouseDown = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+    if (!stampMode || e.button !== 0) return
+    const { r, c } = cellFromEvent(e)
+    setDragStart({ r, c })
+    setSelection({ r1: r, c1: c, r2: r, c2: c })
+  }, [stampMode, cellFromEvent])
+
+  const handleStampMouseMove = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+    if (!dragStart) return
+    const { r, c } = cellFromEvent(e)
+    setSelection({
+      r1: Math.min(dragStart.r, r), c1: Math.min(dragStart.c, c),
+      r2: Math.max(dragStart.r, r), c2: Math.max(dragStart.c, c),
+    })
+  }, [dragStart, cellFromEvent])
+
+  const handleStampMouseUp = useCallback(() => {
+    setDragStart(null)
+  }, [])
+
+  // Get the effective type+rotation for a cell (resolving template + overrides)
+  const getEffectiveCell = useCallback((r: number, c: number) => {
+    const cell = cells[r]?.[c]
+    if (!cell) return { typeIndex: 0, rotation: 0 as Rotation }
+    const tmplCell = template[r % templateRows][c % templateCols]
+    const typeIndex = cell.typeOverride ?? tmplCell.typeIndex
+    const rotation = ((cell.rotation + tmplCell.rotation) % 4) as Rotation
+    return { typeIndex, rotation }
+  }, [cells, template, templateRows, templateCols])
+
+  // Repeat the selection in a direction
+  const repeatSelection = useCallback((dir: 'right' | 'left' | 'down' | 'up') => {
+    if (!selection) return
+    const { r1, c1, r2, c2 } = selection
+    const sw = c2 - c1 + 1  // stamp width
+    const sh = r2 - r1 + 1  // stamp height
+
+    // Capture the stamp pattern (effective type + rotation)
+    const stamp: { typeIndex: number; rotation: Rotation }[][] = []
+    for (let dr = 0; dr < sh; dr++) {
+      const row: { typeIndex: number; rotation: Rotation }[] = []
+      for (let dc = 0; dc < sw; dc++) {
+        row.push(getEffectiveCell(r1 + dr, c1 + dc))
+      }
+      stamp.push(row)
+    }
+
+    setCells(prev => {
+      const next = prev.map(row => row.map(cell => ({ ...cell })))
+      // Fill in the repeat direction
+      const applyStamp = (startR: number, startC: number) => {
+        for (let dr = 0; dr < sh; dr++) {
+          for (let dc = 0; dc < sw; dc++) {
+            const tr = startR + dr, tc = startC + dc
+            if (tr < 0 || tr >= rows || tc < 0 || tc >= cols) continue
+            if (mask && !mask[tr]?.[tc]) continue
+            // Skip the original selection
+            if (tr >= r1 && tr <= r2 && tc >= c1 && tc <= c2) continue
+            const s = stamp[dr][dc]
+            next[tr][tc] = { typeOverride: s.typeIndex, rotation: s.rotation }
+          }
+        }
+      }
+      if (dir === 'right') {
+        for (let startC = c1 + sw; startC < cols; startC += sw) applyStamp(r1, startC)
+      } else if (dir === 'left') {
+        for (let startC = c1 - sw; startC >= -sw + 1; startC -= sw) applyStamp(r1, startC)
+      } else if (dir === 'down') {
+        for (let startR = r1 + sh; startR < rows; startR += sh) applyStamp(startR, c1)
+      } else if (dir === 'up') {
+        for (let startR = r1 - sh; startR >= -sh + 1; startR -= sh) applyStamp(startR, c1)
+      }
+      return next
+    })
+  }, [selection, rows, cols, mask, getEffectiveCell])
+
+  // Repeat in ALL directions (fill the grid)
+  const repeatAll = useCallback(() => {
+    if (!selection) return
+    const { r1, c1, r2, c2 } = selection
+    const sw = c2 - c1 + 1
+    const sh = r2 - r1 + 1
+    const stamp: { typeIndex: number; rotation: Rotation }[][] = []
+    for (let dr = 0; dr < sh; dr++) {
+      const row: { typeIndex: number; rotation: Rotation }[] = []
+      for (let dc = 0; dc < sw; dc++) {
+        row.push(getEffectiveCell(r1 + dr, c1 + dc))
+      }
+      stamp.push(row)
+    }
+    setCells(prev => {
+      const next = prev.map(row => row.map(cell => ({ ...cell })))
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          if (mask && !mask[r]?.[c]) continue
+          if (r >= r1 && r <= r2 && c >= c1 && c <= c2) continue
+          const sr = ((r - r1) % sh + sh) % sh
+          const sc = ((c - c1) % sw + sw) % sw
+          const s = stamp[sr][sc]
+          next[r][c] = { typeOverride: s.typeIndex, rotation: s.rotation }
+        }
+      }
+      return next
+    })
+  }, [selection, rows, cols, mask, getEffectiveCell])
+
   // ── SVG export ──
   const downloadSVG = useCallback(() => {
     if (!svgRef.current) return
@@ -663,6 +805,30 @@ export function App() {
 
           <GroutPicker selected={groutColor} onSelect={setGroutColor} />
 
+          {/* Stamp tool */}
+          <div style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.7px', color: '#666', marginBottom: 7 }}>Stamp Tool</div>
+            <button onClick={() => { setStampMode(!stampMode); if (stampMode) setSelection(null) }}
+              style={stampMode ? { ...btnActive, width: '100%', padding: '6px 0', marginBottom: 6 } : { ...btnBase, width: '100%', padding: '6px 0', marginBottom: 6 }}>
+              {stampMode ? '✓ Select Mode ON' : 'Select Region'}
+            </button>
+            {stampMode && (
+              <div style={{ fontSize: 9, color: '#888', marginBottom: 6 }}>
+                {selection ? `Selected ${selection.c2-selection.c1+1}×${selection.r2-selection.r1+1} — repeat:` : 'Drag on the grid to select a region'}
+              </div>
+            )}
+            {selection && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, marginBottom: 6 }}>
+                <button onClick={() => repeatSelection('left')} style={btnBase}>← Left</button>
+                <button onClick={() => repeatSelection('right')} style={btnBase}>→ Right</button>
+                <button onClick={() => repeatSelection('up')} style={btnBase}>↑ Up</button>
+                <button onClick={() => repeatSelection('down')} style={btnBase}>↓ Down</button>
+                <button onClick={repeatAll} style={{ ...btnBase, gridColumn: '1 / -1' }}>Fill All</button>
+                <button onClick={() => setSelection(null)} style={{ ...btnBase, gridColumn: '1 / -1', color: '#999' }}>Clear Selection</button>
+              </div>
+            )}
+          </div>
+
           {/* Patterns */}
           <div style={{ marginBottom: 18 }}>
             <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.7px', color: '#666', marginBottom: 7 }}>Patterns</div>
@@ -703,7 +869,11 @@ export function App() {
         onContextMenu={e => e.preventDefault()}>
         <svg id="canvas" ref={svgRef} width={svgWidth} height={svgHeight}
           style={{ background: 'white', boxShadow: '0 2px 16px rgba(0,0,0,0.10)', display: 'block' }}
-          xmlns="http://www.w3.org/2000/svg">
+          xmlns="http://www.w3.org/2000/svg"
+          onMouseDown={handleStampMouseDown}
+          onMouseMove={handleStampMouseMove}
+          onMouseUp={handleStampMouseUp}
+          onMouseLeave={handleStampMouseUp}>
           {cells.slice(0, rows).flatMap((row, r) =>
             row.slice(0, cols).map((cell, c) => {
               if (mask && !mask[r]?.[c]) return null
@@ -716,9 +886,9 @@ export function App() {
                 <g key={`${r}-${c}`}>
                   <rect x={c*cellSize} y={r*cellSize} width={cellSize+groutWidth} height={cellSize+groutWidth} fill={groutColor} />
                   <g transform={`translate(${tx},${ty})`}
-                    onClick={e => e.shiftKey ? handleTileReset(r, c) : handleTilePaint(r, c)}
-                    onContextMenu={e => { e.preventDefault(); handleTileRotate(r, c) }}
-                    style={{ cursor: 'pointer' }}>
+                    onClick={e => { if (stampMode) return; e.shiftKey ? handleTileReset(r, c) : handleTilePaint(r, c) }}
+                    onContextMenu={e => { e.preventDefault(); if (!stampMode) handleTileRotate(r, c) }}
+                    style={{ cursor: stampMode ? 'crosshair' : 'pointer' }}>
                     <g transform={`rotate(${imgRot(((cell.rotation + tmplCell.rotation) % 4) as Rotation)},${tileSize/2},${tileSize/2})`}>
                       <image href={`${import.meta.env.BASE_URL}tiles/${tile.image}`} width={tileSize} height={tileSize} />
                     </g>
@@ -726,6 +896,20 @@ export function App() {
                 </g>
               )
             })
+          )}
+          {/* Selection highlight overlay */}
+          {selection && (
+            <rect
+              x={selection.c1 * cellSize + groutWidth / 2}
+              y={selection.r1 * cellSize + groutWidth / 2}
+              width={(selection.c2 - selection.c1 + 1) * cellSize}
+              height={(selection.r2 - selection.r1 + 1) * cellSize}
+              fill="none"
+              stroke="#2080ff"
+              strokeWidth={2}
+              strokeDasharray="6 3"
+              pointerEvents="none"
+            />
           )}
         </svg>
       </div>
