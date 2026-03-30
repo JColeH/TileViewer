@@ -634,11 +634,17 @@ export function App() {
           xmlns="http://www.w3.org/2000/svg"
           onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp} onMouseLeave={onMouseUp}>
 
-          {/* White out masked area */}
-          {mask && Array.from({ length: rows }, (_, r) =>
+          {/* Click targets for all cells (including empty ones) + mask whitout */}
+          {Array.from({ length: rows }, (_, r) =>
             Array.from({ length: cols }, (_, c) => {
-              if (mask[r]?.[c]) return null
-              return <rect key={`m${r}-${c}`} x={c * halfPitch} y={r * halfPitch} width={halfPitch} height={halfPitch} fill="white" />
+              if (mask && !mask[r]?.[c]) return <rect key={`bg${r}-${c}`} x={c * halfPitch} y={r * halfPitch} width={halfPitch} height={halfPitch} fill="white" />
+              return (
+                <rect key={`bg${r}-${c}`} x={c * halfPitch} y={r * halfPitch} width={halfPitch} height={halfPitch}
+                  fill="transparent" cursor="pointer"
+                  onClick={e => { if (e.shiftKey) return; handleClick(r, c) }}
+                  onContextMenu={e => { e.preventDefault(); handleRotate(r, c) }}
+                />
+              )
             })
           )}
 
