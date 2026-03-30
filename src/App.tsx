@@ -86,9 +86,9 @@ const TEMPLATE_PRESETS: { label: string; rows: number; cols: number }[] = [
 
 // ─── Staircase room layout ──────────────────────────────────────────────────
 const STAIRCASE_COLS         = 9
-const STAIRCASE_ROWS         = 14
-const STAIRCASE_UPPER_OFFSET = 3
-const STAIRCASE_UPPER_ROWS   = 5
+const STAIRCASE_ROWS         = 17
+const STAIRCASE_UPPER_OFFSET = 4
+const STAIRCASE_UPPER_ROWS   = 6
 
 function staircaseMask(): boolean[][] {
   return Array.from({ length: STAIRCASE_ROWS }, (_, r) =>

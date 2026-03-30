@@ -43,7 +43,7 @@ import { parseArgs } from 'util'
 
 // ─── Layouts ────────────────────────────────────────────────────────────────
 const LAYOUTS = {
-  staircase: { cols: 9, rows: 14 },
+  staircase: { cols: 9, rows: 17 },
   grid:      { cols: 8, rows: 8 },
 }
 
