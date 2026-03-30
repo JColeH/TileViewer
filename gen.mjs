@@ -196,6 +196,106 @@ designs.moss_stone = {
   grout: '484040',
 }
 
+// Moss & Stone v2: clustered stones, path logic, DuneBirch cohesion
+designs.moss_stone_v2 = {
+  fn: (r, c) => {
+    const hash = ((r * 31 + c * 47 + r * c * 7) % 131)
+    const hash2 = ((r * 53 + c * 29 + r * c * 11) % 97)
+
+    // Define a path from door (upper-right, ~col 16, row 0) to stairs down (gap)
+    // and stairs up (lower-left, ~col 2, row 33)
+    // Path curves through the middle
+    const pathCenterCol = r < 12
+      ? 13 + Math.sin(r * 0.3) * 2   // upper section: near col 13
+      : 13 - (r - 12) * 0.5 + Math.sin(r * 0.2) * 1.5  // curves left as we go down
+    const distFromPath = Math.abs(c - pathCenterCol)
+    const onPath = distFromPath < 3.5
+    const nearPath = distFromPath < 5.5
+
+    // Shoe rack area: bottom 4 rows — mostly small cuts
+    const isShoeRack = r >= 30
+
+    // Edge detection: near the boundary of the L-shape
+    const isEdge = (r < 12 && (c <= 9 || c >= 16)) || r <= 1 || r >= 32 || c <= 1 || c >= 16
+
+    // Stone clustering: use a cellular pattern to create clusters
+    // Cluster centers at pseudo-random positions
+    const clusterX = Math.floor(c / 4) * 4 + 2
+    const clusterY = Math.floor(r / 4) * 4 + 2
+    const clusterDist = Math.sqrt((r - clusterY) ** 2 + (c - clusterX) ** 2)
+    const inCluster = clusterDist < 2.5 && hash2 < 70
+
+    // Arc stones: place on even grid positions
+    if (r % 2 === 0 && c % 2 === 0) {
+      // Shoe rack: no stones, all cuts
+      if (isShoeRack) return null
+
+      // On path: high stone density, larger clusters
+      if (onPath && (hash < 95 || inCluster)) {
+        // Primarily DuneBirch for cohesion, occasional StormBirch for variety
+        if (hash2 < 75) return { type: ARC.DuneBirch, rotation: hash % 4 }
+        return { type: ARC.StormBirch, rotation: hash % 4 }
+      }
+
+      // Near path: medium density
+      if (nearPath && hash < 65) {
+        if (hash2 < 60) return { type: ARC.DuneBirch, rotation: hash % 4 }
+        if (hash2 < 85) return { type: ARC.StormBirch, rotation: hash % 4 }
+        return { type: ARC.BasaltDune, rotation: hash % 4 }
+      }
+
+      // Edges: sparse stones, smaller fragments preferred (skip arcs more)
+      if (isEdge && hash < 30) {
+        return { type: ARC.DuneBirch, rotation: hash % 4 }
+      }
+
+      // General area: moderate density
+      if (!isEdge && hash < 55) {
+        if (hash2 < 65) return { type: ARC.DuneBirch, rotation: hash % 4 }
+        return { type: ARC.StormBirch, rotation: hash % 4 }
+      }
+
+      return null // gap for moss
+    }
+
+    // Vertical rect "cracks" between stones — like thick moss seams
+    if (c % 2 === 0 && r % 2 === 1 && !isShoeRack) {
+      // Place vertical cracks occasionally between stone clusters
+      if (hash < 20 && nearPath) {
+        return { type: vert(hash2 < 50 ? G.Surf : G.Storm), rotation: 0 }
+      }
+    }
+
+    // Moss fills — vary between green (Surf) and gray (Storm) with some Dune
+    if (isShoeRack) {
+      // Shoe rack: earth-toned cuts that hide dirt
+      if (hash < 35) return { type: cut(G.Storm), rotation: 0 }
+      if (hash < 65) return { type: cut(G.Dune), rotation: 0 }
+      return { type: cut(G.Basalt), rotation: 0 }
+    }
+
+    // Near path: more green moss (Surf)
+    if (onPath) {
+      if (hash < 45) return { type: cut(G.Surf), rotation: 0 }
+      if (hash < 75) return { type: cut(G.Storm), rotation: 0 }
+      return { type: cut(G.Dune), rotation: 0 }
+    }
+
+    // Edges: more gray/storm moss
+    if (isEdge) {
+      if (hash < 30) return { type: cut(G.Surf), rotation: 0 }
+      if (hash < 70) return { type: cut(G.Storm), rotation: 0 }
+      return { type: cut(G.Dune), rotation: 0 }
+    }
+
+    // General: balanced moss
+    if (hash < 40) return { type: cut(G.Surf), rotation: 0 }
+    if (hash < 70) return { type: cut(G.Storm), rotation: 0 }
+    return { type: cut(G.Dune), rotation: 0 }
+  },
+  grout: '4A3F35',
+}
+
 // River Stones: a flowing path of cut tiles through arc tile field
 designs.river_stones = {
   fn: (r, c) => {

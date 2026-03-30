@@ -330,6 +330,232 @@ designs.earth_dappled = {
   grout: '6B5B45',
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// EARTH_LICHEN_V2 — Improved organic lichen patches.
+//   Changes: fewer patches near door, more size variation in patches,
+//   feathered edges using rects, varied background arc rotations,
+//   gradient: sparser near door (upper-right), denser toward lower-left.
+// ═══════════════════════════════════════════════════════════════════════════════
+designs.earth_lichen_v2 = {
+  fn: (r, c) => {
+    if (!inMask(r, c)) return null
+    const h = hashCell(r, c, 42)
+
+    // Distance from door (upper-right) — lichen grows more in sheltered areas
+    const doorDist = Math.sqrt((r - 1) ** 2 + (c - 17) ** 2)
+    const doorFactor = Math.min(1, doorDist / 25) // 0 near door, 1 far away
+
+    // Lichen seed centers — repositioned to favor lower/left areas
+    const seeds = [
+      { r: 5, c: 11, radius: 2.0 },   // small spot in upper area
+      { r: 10, c: 9, radius: 2.2 },    // near L-junction
+      { r: 15, c: 3, radius: 4.5 },    // big colony, lower-left
+      { r: 15, c: 13, radius: 3.2 },   // medium, center-right
+      { r: 21, c: 1, radius: 3.0 },    // left edge
+      { r: 22, c: 10, radius: 3.8 },   // large center patch
+      { r: 27, c: 6, radius: 3.5 },    // lower center
+      { r: 30, c: 14, radius: 2.8 },   // lower right
+      { r: 19, c: 16, radius: 1.8 },   // small satellite
+      { r: 25, c: 15, radius: 2.0 },   // small satellite right
+      { r: 33, c: 3, radius: 2.5 },    // near shoe rack
+    ]
+
+    // Check lichen proximity with organic edge
+    let inLichen = false
+    let closestDist = Infinity
+    let patchRadius = 0
+    for (const s of seeds) {
+      const dx = c - s.c
+      const dy = r - s.r
+      const dist = Math.sqrt(dx * dx + dy * dy)
+      // Wobble the boundary using hash for organic shape
+      const wobble = ((hashCell(r, c, s.r * 100 + s.c) % 20) / 20 - 0.5) * 1.8
+      const effectiveRadius = s.radius * (0.7 + doorFactor * 0.3) + wobble
+      if (dist < effectiveRadius) {
+        inLichen = true
+        if (dist < closestDist) {
+          closestDist = dist
+          patchRadius = effectiveRadius
+        }
+      }
+    }
+
+    // Edge zone: transitional ring around patches
+    let inEdge = false
+    if (!inLichen) {
+      for (const s of seeds) {
+        const dist = Math.sqrt((r - s.r) ** 2 + (c - s.c) ** 2)
+        const wobble = ((hashCell(r, c, s.r * 100 + s.c) % 20) / 20 - 0.5) * 1.5
+        const effectiveRadius = s.radius * (0.7 + doorFactor * 0.3) + wobble
+        if (dist < effectiveRadius + 1.5 && dist >= effectiveRadius) {
+          inEdge = true
+          break
+        }
+      }
+    }
+
+    if (inLichen) {
+      const depthRatio = closestDist / patchRadius // 0 = center, 1 = edge
+
+      // Deep core: dense Surf with some Denim arcs for texture
+      if (depthRatio < 0.35) {
+        if (r % 2 === 0 && c % 2 === 0 && h % 4 === 0) {
+          // Occasional small arc in core for variety
+          return { type: ARC.SurfSunbeam, rotation: (h >> 2) % 4 }
+        }
+        if (r % 2 === 0 && h % 5 < 2) return { type: vert(G.Surf), rotation: 0 }
+        const coreCuts = [G.Surf, G.Surf, G.Denim, G.Storm, G.Surf]
+        return { type: cut(coreCuts[h % coreCuts.length]), rotation: 0 }
+      }
+
+      // Mid zone: mixed Storm/Surf with rect texture
+      if (depthRatio < 0.7) {
+        if (c % 2 === 0 && h % 4 === 0) return { type: horiz(G.Storm), rotation: 0 }
+        if (r % 2 === 0 && h % 5 === 0) return { type: vert(G.Denim), rotation: 0 }
+        const midCuts = [G.Storm, G.Surf, G.Storm, G.Denim]
+        return { type: cut(midCuts[h % midCuts.length]), rotation: 0 }
+      }
+
+      // Outer lichen: sparse, transitional cuts
+      if (h % 3 === 0) return { type: cut(G.Storm), rotation: 0 }
+      if (h % 3 === 1) return { type: cut(G.Dune), rotation: 0 }
+      // Let some outer cells fall through to background arcs
+    }
+
+    // Edge zone: occasional transitional cuts mixed into background
+    if (inEdge && h % 3 === 0) {
+      const edgeCuts = [G.Dune, G.Storm, G.Dune]
+      return { type: cut(edgeCuts[h % edgeCuts.length]), rotation: 0 }
+    }
+
+    // Background: warm stone arcs with varied rotation
+    if (r % 2 === 0 && c % 2 === 0) {
+      const bh = hashCell(r / 2, c / 2, 88)
+      // More Redwood/Dune, with occasional Sunbeam warmth
+      const bgArcs = [
+        ARC.RedwoodDune, ARC.RedwoodDune, ARC.RedwoodDune,
+        ARC.DuneBirch, ARC.RedwoodSunbeam, ARC.RedwoodCoral,
+        ARC.BirchDune, ARC.RedwoodDune
+      ]
+      const pick = bgArcs[bh % bgArcs.length]
+      // Mix pinwheel with some random rotation for organic stone feel
+      const rot = bh % 7 < 5 ? pinIn(r / 2, c / 2) : (bh >> 3) % 4
+      return { type: pick, rotation: rot }
+    }
+    return null
+  },
+  grout: '7A6B50',  // slightly cooler brown to let warm tiles pop
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EARTH_LICHEN_V3 — Better organic balance.
+//   Fixes: removed too-small upper patch, reduced lichen density so background
+//   stone shows through, more 2x2 arcs in lichen cores, better transition rects,
+//   warmer grout, cleaner bottom rows.
+// ═══════════════════════════════════════════════════════════════════════════════
+designs.earth_lichen_v3 = {
+  fn: (r, c) => {
+    if (!inMask(r, c)) return null
+    const h = hashCell(r, c, 42)
+
+    // Distance from door (upper-right)
+    const doorDist = Math.sqrt((r - 1) ** 2 + (c - 17) ** 2)
+    const doorFactor = Math.min(1, doorDist / 28)
+
+    // Lichen colonies — fewer, more intentionally placed
+    const seeds = [
+      { r: 7, c: 12, radius: 2.5 },    // modest upper patch, away from door
+      { r: 14, c: 3, radius: 4.0 },     // large left colony
+      { r: 15, c: 14, radius: 2.8 },    // medium right
+      { r: 21, c: 2, radius: 3.2 },     // left
+      { r: 22, c: 10, radius: 3.0 },    // center — reduced from 3.8
+      { r: 27, c: 5, radius: 3.2 },     // lower-left
+      { r: 29, c: 13, radius: 2.5 },    // lower-right
+      { r: 25, c: 16, radius: 1.5 },    // tiny satellite
+      { r: 32, c: 8, radius: 2.0 },     // near shoe rack
+    ]
+
+    // Check lichen proximity
+    let inLichen = false
+    let closestDist = Infinity
+    let patchRadius = 0
+    for (const s of seeds) {
+      const dist = Math.sqrt((r - s.r) ** 2 + (c - s.c) ** 2)
+      // Organic boundary wobble
+      const wobble = ((hashCell(r, c, s.r * 100 + s.c) % 20) / 20 - 0.5) * 1.6
+      const effR = s.radius * (0.75 + doorFactor * 0.25) + wobble
+      if (dist < effR) {
+        inLichen = true
+        if (dist < closestDist) { closestDist = dist; patchRadius = effR }
+      }
+    }
+
+    // Thin transition ring
+    let inEdge = false
+    if (!inLichen) {
+      for (const s of seeds) {
+        const dist = Math.sqrt((r - s.r) ** 2 + (c - s.c) ** 2)
+        const wobble = ((hashCell(r, c, s.r * 100 + s.c) % 20) / 20 - 0.5) * 1.2
+        const effR = s.radius * (0.75 + doorFactor * 0.25) + wobble
+        if (dist < effR + 1.2 && dist >= effR) { inEdge = true; break }
+      }
+    }
+
+    if (inLichen) {
+      const depth = closestDist / patchRadius // 0=center, 1=edge
+
+      // CORE (inner 40%): 2x2 arcs + dense Surf cuts — the "thick growth"
+      if (depth < 0.4) {
+        if (r % 2 === 0 && c % 2 === 0) {
+          // ~40% chance of a lichen-colored arc in the core
+          if (h % 5 < 2) return { type: ARC.SurfSunbeam, rotation: (h >> 2) % 4 }
+          if (h % 5 === 2) return { type: ARC.SunbeamDenim, rotation: (h >> 2) % 4 }
+        }
+        // Remaining core cells: dense small tiles
+        if (r % 2 === 0 && h % 6 < 2) return { type: vert(G.Surf), rotation: 0 }
+        const coreCuts = [G.Surf, G.Surf, G.Denim, G.Storm]
+        return { type: cut(coreCuts[h % coreCuts.length]), rotation: 0 }
+      }
+
+      // MID (40-70%): sparser, more Storm than Surf
+      if (depth < 0.7) {
+        // Let ~25% of mid cells show background stone underneath
+        if (h % 4 === 0 && r % 2 === 0 && c % 2 === 0) {
+          return { type: ARC.RedwoodDune, rotation: pinIn(r / 2, c / 2) }
+        }
+        if (c % 2 === 0 && h % 5 === 0) return { type: horiz(G.Storm), rotation: 0 }
+        if (h % 3 === 0) return { type: cut(G.Storm), rotation: 0 }
+        return { type: cut(G.Surf), rotation: 0 }
+      }
+
+      // OUTER (70-100%): very sparse, mostly warm with lichen freckles
+      if (h % 4 === 0) return { type: cut(G.Storm), rotation: 0 }
+      if (h % 4 === 1) return { type: cut(G.Dune), rotation: 0 }
+      // Else fall through to background
+    }
+
+    // Edge halo: occasional Storm/Dune cut to soften boundary
+    if (inEdge && h % 4 === 0) {
+      return { type: cut(h % 2 === 0 ? G.Storm : G.Dune), rotation: 0 }
+    }
+
+    // Background: warm stone arcs
+    if (r % 2 === 0 && c % 2 === 0) {
+      const bh = hashCell(r / 2, c / 2, 88)
+      const bgArcs = [
+        ARC.RedwoodDune, ARC.RedwoodDune, ARC.RedwoodDune,
+        ARC.DuneBirch, ARC.RedwoodSunbeam, ARC.RedwoodCoral,
+        ARC.BirchDune, ARC.RedwoodDune
+      ]
+      const pick = bgArcs[bh % bgArcs.length]
+      const rot = bh % 7 < 5 ? pinIn(r / 2, c / 2) : (bh >> 3) % 4
+      return { type: pick, rotation: rot }
+    }
+    return null
+  },
+  grout: '6B5840',  // warmer, darker mortar
+}
+
 // ─── Run ────────────────────────────────────────────────────────────────────
 const port = detectPort()
 if (!port) { console.error('Dev server not running'); process.exit(1) }

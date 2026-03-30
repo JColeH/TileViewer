@@ -85,51 +85,65 @@ designs.texture_framed_panels = {
   fn: (r, c) => {
     if (!inMask(r, c)) return null
 
-    // Determine the local bounding box for the current region
-    const minC = r < S.upperRows ? S.upperOffset : 0
-    const maxC = S.cols - 1
-    const maxR = S.rows - 1
-    const minR = 0
+    // L-shape edges: define the border precisely for each cell
+    const inUpper = r < S.upperRows
+    const leftEdge = inUpper ? S.upperOffset : 0
+    const rightEdge = S.cols - 1
+    const topEdge = 0
+    const botEdge = S.rows - 1
+    // The inner corner of the L: horizontal step at row 12, cols 0-7
+    // and vertical step at col 8, rows 0-11
 
-    // Border: 2 cells thick on each edge
-    const isTop = r <= minR + 1
-    const isBot = r >= maxR - 1
-    const isLeft = c <= minC + 1
-    const isRight = c >= maxC - 1
-    // Also the L-shape inner edge
-    const isLedge = r < S.upperRows && c <= S.upperOffset + 1
+    // Distance from each L-shape edge
+    const dTop = r - topEdge
+    const dBot = botEdge - r
+    const dLeft = c - leftEdge
+    const dRight = rightEdge - c
+    // Inner corner edges (only relevant near the step)
+    const dStepH = inUpper ? Infinity : r - S.upperRows  // dist from horizontal step edge (row 12) going down
+    const dStepV = (!inUpper && c < S.upperOffset) ? Infinity : (inUpper ? Infinity : Infinity)
 
-    const isBorder = isTop || isBot || isLeft || isRight || isLedge
+    // For cells in the lower section near the step
+    const nearStepTop = !inUpper && r < S.upperRows + 2 && c < S.upperOffset  // top of lower-left area
 
-    // Corner squares: 2×2 blocks at the four corners get cut tiles for extra texture
-    const isCorner =
-      (r <= minR + 3 && c <= minC + 3) ||
-      (r <= minR + 3 && c >= maxC - 3) ||
-      (r >= maxR - 3 && c <= 3) ||
-      (r >= maxR - 3 && c >= maxC - 3)
+    // Outer border (ring 0-1): Redwood rects
+    const distToEdge = Math.min(
+      dTop, dBot, dLeft, dRight,
+      // Step edges for the inner corner
+      (!inUpper && c < S.upperOffset) ? (r - S.upperRows) : Infinity,
+    )
 
-    if (isBorder && isCorner) {
-      // Cut tiles in corners — warm accent
-      const hash = (r * 13 + c * 7) % 3
-      const colors = [G.Sunbeam, G.Redwood, G.Dune]
-      return { type: cut(colors[hash]), rotation: 0 }
-    }
+    const isOuterBorder = distToEdge <= 1
+    // Inner accent line (ring 2): Sunbeam cut tiles
+    const isInnerAccent = distToEdge === 2
 
-    if (isBorder) {
-      // Horizontal rects along top/bottom edges
-      if ((isTop || isBot) && c % 2 === 0) {
+    if (isOuterBorder) {
+      // Horizontal rects along top/bottom/step-horizontal edges
+      const onHorizEdge = dTop <= 1 || dBot <= 1 || nearStepTop
+      const onVertEdge = dLeft <= 1 || dRight <= 1
+
+      if (onHorizEdge && c % 2 === 0) {
         return { type: horiz(G.Redwood), rotation: 0 }
       }
-      // Vertical rects along left/right/ledge edges
-      if ((isLeft || isRight || isLedge) && r % 2 === 0) {
+      if (onVertEdge && r % 2 === 0) {
         return { type: vert(G.Redwood), rotation: 0 }
       }
-      return null
+      // Fill remaining border cells with Redwood cuts
+      return { type: cut(G.Redwood), rotation: 0 }
     }
 
-    // Interior: smooth arc field in Birch/Dune — warm and calm
+    if (isInnerAccent) {
+      // Thin accent line of Sunbeam cuts just inside the border
+      return { type: cut(G.Sunbeam), rotation: 0 }
+    }
+
+    // Interior: smooth arc field with tonal variation
     if (r % 2 === 0 && c % 2 === 0) {
-      return { type: ARC.BirchDune, rotation: pinIn(r / 2, c / 2) }
+      const tr = r / 2, tc = c / 2
+      const pattern = (tr + tc) % 3
+      if (pattern === 0) return { type: ARC.BirchDune, rotation: pinIn(tr, tc) }
+      if (pattern === 1) return { type: ARC.DuneBirch, rotation: pinIn(tr, tc) }
+      return { type: ARC.BirchDune, rotation: pinOut(tr, tc) }
     }
     return null
   },

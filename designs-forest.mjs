@@ -142,6 +142,92 @@ designs.forest_tree_rings = {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// DESIGN V2: forest_tree_rings_v2
+// Improved: offset centers, varied tree sizes, forest floor debris, ground texture
+// ═══════════════════════════════════════════════════════════════════════════════
+designs.forest_tree_rings_v2 = {
+  fn: (r, c) => {
+    if (!inMask(r, c)) return null
+
+    const h = ((r * 37 + c * 59 + r * c * 13) % 211)
+
+    // Tree centers with varied sizes (radius multipliers)
+    // Positions offset from grid for natural feel
+    const trees = [
+      { cr: 3, cc: 13, size: 0.8 },    // upper-right: smaller welcome tree near door
+      { cr: 15, cc: 3, size: 1.3 },     // mid-left: old growth, large
+      { cr: 17, cc: 15, size: 0.7 },    // mid-right: young tree
+      { cr: 27, cc: 7, size: 1.1 },     // lower: medium tree
+    ]
+
+    // Find nearest tree and distance
+    let bestTree = trees[0]
+    let bestDist = Infinity
+    for (const t of trees) {
+      const d = Math.sqrt((r - t.cr) ** 2 + (c - t.cc) ** 2)
+      if (d / t.size < bestDist / (bestTree?.size || 1)) {
+        bestDist = d
+        bestTree = t
+      }
+    }
+
+    // Effective distance adjusted by tree size
+    const effDist = bestDist / bestTree.size
+
+    // Shoe rack area (bottom rows 30-33): forest floor only
+    if (r >= 30) {
+      if (h < 70) return { type: cut(G.Dune), rotation: 0 }
+      if (h < 120) return { type: cut(G.Birch), rotation: 0 }
+      if (h < 160) return { type: cut(G.Storm), rotation: 0 }
+      return { type: cut(G.Dune), rotation: 0 }
+    }
+
+    // Between trees (far from any center): forest floor with debris
+    if (effDist > 11) {
+      // Mix of cut tiles as forest floor
+      if (r % 2 === 0 && c % 2 === 0 && h < 80) {
+        // Occasional light arcs as ground undulation
+        return { type: ARC.DuneBirch, rotation: h % 4 }
+      }
+      if (h < 60) return { type: cut(G.Dune), rotation: 0 }
+      if (h < 100) return { type: cut(G.Birch), rotation: 0 }
+      if (h < 130) return { type: cut(G.Storm), rotation: 0 }
+      if (h < 145) return { type: cut(G.Redwood), rotation: 0 }  // bark debris
+      return { type: cut(G.Dune), rotation: 0 }
+    }
+
+    // Scatter some 1x1 debris cuts randomly even within ring zones
+    if (h < 12 && effDist > 4) {
+      if (h < 4) return { type: cut(G.Redwood), rotation: 0 }
+      if (h < 8) return { type: cut(G.Storm), rotation: 0 }
+      return { type: cut(G.Dune), rotation: 0 }
+    }
+
+    // Arc tiles: only anchor at even coords
+    if (r % 2 === 0 && c % 2 === 0) {
+      // Quadrant relative to center determines rotation
+      const dr = r - bestTree.cr
+      const dc = c - bestTree.cc
+      let rot
+      if (dr <= 0 && dc <= 0) rot = 0
+      else if (dr <= 0 && dc > 0) rot = 1
+      else if (dr > 0 && dc > 0) rot = 2
+      else rot = 3
+
+      // Ring layers scaled by tree size
+      if (effDist < 2.5) return { type: ARC.RedwoodDune, rotation: rot }
+      if (effDist < 4.5) return { type: ARC.RedwoodSunbeam, rotation: rot }
+      if (effDist < 6.5) return { type: ARC.StormBirch, rotation: rot }
+      if (effDist < 8.5) return { type: ARC.BasaltDune, rotation: rot }
+      return { type: ARC.DuneBirch, rotation: rot }
+    }
+
+    return null
+  },
+  grout: '5C4A3A',
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // DESIGN 2: forest_dappled_light
 // A predominantly dark field of Storm/Birch and Basalt/Dune arcs (the canopy
 // overhead) with irregular bright "holes" where sunlight breaks through —
