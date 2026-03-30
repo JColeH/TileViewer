@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { GROUT_COLORS } from './colors'
 
 type Rotation = 0 | 1 | 2 | 3
@@ -163,7 +163,7 @@ function TemplateEditor({ template, tileSize, groutColor, selectedType, onSetSlo
                 onContextMenu={e => { e.preventDefault(); onRotateSlot(r, c) }}
               >
                 <g transform={`rotate(${imgRot(cell.rotation)},${S/2},${S/2})`}>
-                  <image href={`/tiles/${t.image}`} width={S} height={S} />
+                  <image href={`${import.meta.env.BASE_URL}tiles/${t.image}`} width={S} height={S} />
                 </g>
               </g>
             )
@@ -199,7 +199,7 @@ function TileTypePicker({ size, selected, onSelect }: {
               width: size, height: size, flexShrink: 0, borderRadius: 2, overflow: 'hidden',
               border: '1px solid rgba(0,0,0,0.08)',
             }}>
-              <img src={`/tiles/${t.image}`} width={size} height={size} style={{ display: 'block' }} />
+              <img src={`${import.meta.env.BASE_URL}tiles/${t.image}`} width={size} height={size} style={{ display: 'block' }} />
             </div>
             <span style={{ fontSize: 10, color: '#444', lineHeight: 1.3 }}>{t.name}</span>
           </div>
@@ -236,19 +236,75 @@ function GroutPicker({ selected, onSelect }: {
   )
 }
 
+// ─── URL state encoding / decoding ──────────────────────────────────────────
+
+// Template: each cell encoded as hex typeIndex (0-b) + rotation (0-3), row-major
+// Cell rotations: string of 0-3 digits, row-major
+function encodeState(
+  layoutKey: string, tRows: number, tCols: number, tmpl: TemplateCell[][],
+  grout: string, tileSize: number, groutWidth: number, cells: Cell[][],
+) {
+  const t = tmpl.flatMap(row => row.map(c => c.typeIndex.toString(16) + c.rotation)).join('')
+  const r = cells.flatMap(row => row.map(c => c.rotation)).join('')
+  const params = new URLSearchParams()
+  params.set('l', layoutKey)
+  params.set('ts', `${tRows}x${tCols}`)
+  params.set('t', t)
+  params.set('g', grout.replace('#', ''))
+  params.set('sz', String(tileSize))
+  params.set('gw', String(groutWidth))
+  params.set('r', r)
+  return params.toString()
+}
+
+function decodeState(hash: string) {
+  const params = new URLSearchParams(hash.replace(/^#/, ''))
+  if (!params.has('l')) return null
+  const layoutKey = params.get('l') as 'staircase' | 'grid'
+  const [tRows, tCols] = (params.get('ts') ?? '2x2').split('x').map(Number)
+  const tStr = params.get('t') ?? ''
+  const tmpl: TemplateCell[][] = []
+  for (let r = 0; r < tRows; r++) {
+    const row: TemplateCell[] = []
+    for (let c = 0; c < tCols; c++) {
+      const i = (r * tCols + c) * 2
+      row.push({
+        typeIndex: parseInt(tStr[i] ?? '0', 16),
+        rotation: (Number(tStr[i + 1] ?? '0') % 4) as Rotation,
+      })
+    }
+    tmpl.push(row)
+  }
+  const grout = '#' + (params.get('g') ?? 'C0BDB8')
+  const tileSize = Number(params.get('sz') ?? 56)
+  const groutWidth = Number(params.get('gw') ?? 3)
+  const layout = LAYOUTS[layoutKey] ?? LAYOUTS.staircase
+  const rStr = params.get('r') ?? ''
+  const cells: Cell[][] = Array.from({ length: layout.rows }, (_, r) =>
+    Array.from({ length: layout.cols }, (_, c) => ({
+      rotation: (Number(rStr[r * layout.cols + c] ?? '0') % 4) as Rotation,
+    }))
+  )
+  const preset = TEMPLATE_PRESETS.find(p => p.rows === tRows && p.cols === tCols)?.label ?? ''
+  return { layoutKey, tRows, tCols, tmpl, grout, tileSize, groutWidth, cells, preset }
+}
+
 // ─── App ────────────────────────────────────────────────────────────────────
 
 export function App() {
-  const [layoutKey, setLayoutKey]       = useState<'staircase' | 'grid'>('staircase')
+  const init = decodeState(window.location.hash)
+
+  const [layoutKey, setLayoutKey]       = useState<'staircase' | 'grid'>(init?.layoutKey ?? 'staircase')
   const [selectedType, setSelectedType] = useState(0)
-  const [groutColor, setGroutColor]     = useState('#C0BDB8')
-  const [tileSize, setTileSize]         = useState(56)
-  const [groutWidth, setGroutWidth]     = useState(3)
-  const [templatePreset, setTemplatePreset] = useState('2×2')
-  const [templateRows, setTemplateRows]     = useState(2)
-  const [templateCols, setTemplateCols]     = useState(2)
-  const [template, setTemplate]             = useState<TemplateCell[][]>(() => makeTemplate(2, 2))
+  const [groutColor, setGroutColor]     = useState(init?.grout ?? '#C0BDB8')
+  const [tileSize, setTileSize]         = useState(init?.tileSize ?? 56)
+  const [groutWidth, setGroutWidth]     = useState(init?.groutWidth ?? 3)
+  const [templatePreset, setTemplatePreset] = useState(init?.preset ?? '2×2')
+  const [templateRows, setTemplateRows]     = useState(init?.tRows ?? 2)
+  const [templateCols, setTemplateCols]     = useState(init?.tCols ?? 2)
+  const [template, setTemplate]             = useState<TemplateCell[][]>(() => init?.tmpl ?? makeTemplate(2, 2))
   const [cells, setCells]               = useState<Cell[][]>(() => {
+    if (init?.cells) return init.cells
     const l = LAYOUTS.staircase
     return makeGrid(l.rows, l.cols, PATTERNS.find(p => p.key === l.defaultPattern)!.fn)
   })
@@ -256,6 +312,12 @@ export function App() {
   const svgRef = useRef<SVGSVGElement>(null)
   const layout = LAYOUTS[layoutKey]
   const { cols, rows, mask } = layout
+
+  // ── Sync state → URL hash ──
+  useEffect(() => {
+    const hash = encodeState(layoutKey, templateRows, templateCols, template, groutColor, tileSize, groutWidth, cells)
+    window.history.replaceState(null, '', '#' + hash)
+  }, [layoutKey, templateRows, templateCols, template, groutColor, tileSize, groutWidth, cells])
 
   // ── Layout switch ──
   const switchLayout = useCallback((key: 'staircase' | 'grid') => {
@@ -430,7 +492,7 @@ export function App() {
                   <rect x={c*cellSize} y={r*cellSize} width={cellSize+groutWidth} height={cellSize+groutWidth} fill={groutColor} />
                   <g transform={`translate(${tx},${ty})`} onClick={() => handleTileClick(r, c)} style={{ cursor: 'pointer' }}>
                     <g transform={`rotate(${imgRot(((cell.rotation + tmplCell.rotation) % 4) as Rotation)},${tileSize/2},${tileSize/2})`}>
-                      <image href={`/tiles/${tile.image}`} width={tileSize} height={tileSize} />
+                      <image href={`${import.meta.env.BASE_URL}tiles/${tile.image}`} width={tileSize} height={tileSize} />
                     </g>
                   </g>
                 </g>
