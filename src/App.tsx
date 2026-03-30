@@ -10,7 +10,9 @@ interface TileType {
   name: string
   background: string
   arc: string
-  image?: string          // photo (only for square tiles)
+  image?: string          // full tile photo (square tiles)
+  bgImage?: string        // background glaze texture (rectangle tiles)
+  arcImage?: string       // arc glaze texture (rectangle tiles)
   subW: number            // width in sub-cells at rotation 0
   subH: number            // height in sub-cells at rotation 0
 }
@@ -37,13 +39,18 @@ const TILE_TYPES: TileType[] = [
   { name: 'Redwood / Dune',     background: '#782828', arc: '#DECAB0', image: 'Kat-Roger-6x6-arc-Redwood-Dune-230x230.jpg', subW: 2, subH: 2 },
   { name: 'Redwood / Sunbeam',  background: '#782828', arc: '#C89030', image: 'Kat-Roger-6x6-arc-Redwood-Sunbeam-2-230x230.jpg', subW: 2, subH: 2 },
   { name: 'Redwood / Surf',     background: '#782828', arc: '#486878', image: 'Kat-Roger-6x6-arc-Redwood-Surf-230x230.jpg', subW: 2, subH: 2 },
-  // ─── Rectangle tiles (1×2 sub-cells) — SVG arc rendering ─────────────────
-  { name: 'Rect Birch / Denim', background: '#EAE2D6', arc: '#9898A8', subW: 1, subH: 2 },
-  { name: 'Rect Denim / Birch', background: '#9898A8', arc: '#EAE2D6', subW: 1, subH: 2 },
-  { name: 'Rect Basalt / Dune', background: '#302828', arc: '#DECAB0', subW: 1, subH: 2 },
-  { name: 'Rect Surf / Sunbeam',background: '#486878', arc: '#C89030', subW: 1, subH: 2 },
-  { name: 'Rect Redwood / Coral',background:'#782828', arc: '#C87858', subW: 1, subH: 2 },
-  { name: 'Rect Storm / Birch', background: '#888880', arc: '#EAE2D6', subW: 1, subH: 2 },
+  // ─── Rectangle tiles (1×2 sub-cells) — glaze texture + SVG arc ────────────
+  // bgImage = solid glaze texture for background, arcImage = glaze texture for arc
+  { name: 'Rect Birch / Denim',   background: '#EAE2D6', arc: '#9898A8', subW: 1, subH: 2, bgImage: 'glaze/Birch.jpg', arcImage: 'glaze/Denim.jpg' },
+  { name: 'Rect Denim / Birch',   background: '#9898A8', arc: '#EAE2D6', subW: 1, subH: 2, bgImage: 'glaze/Denim.jpg', arcImage: 'glaze/Birch.jpg' },
+  { name: 'Rect Basalt / Dune',   background: '#302828', arc: '#DECAB0', subW: 1, subH: 2, bgImage: 'glaze/Basalt.jpg', arcImage: 'glaze/Dune.jpg' },
+  { name: 'Rect Surf / Sunbeam',  background: '#486878', arc: '#C89030', subW: 1, subH: 2, bgImage: 'glaze/Surf.jpg', arcImage: 'glaze/Sunbeam.jpg' },
+  { name: 'Rect Redwood / Coral', background: '#782828', arc: '#C87858', subW: 1, subH: 2, bgImage: 'glaze/Redwood.jpg', arcImage: 'glaze/Coral.jpg' },
+  { name: 'Rect Storm / Birch',   background: '#888880', arc: '#EAE2D6', subW: 1, subH: 2, bgImage: 'glaze/storm.jpg', arcImage: 'glaze/Birch.jpg' },
+  { name: 'Rect Redwood / Surf',  background: '#782828', arc: '#486878', subW: 1, subH: 2, bgImage: 'glaze/Redwood.jpg', arcImage: 'glaze/Surf.jpg' },
+  { name: 'Rect Dune / Birch',    background: '#DECAB0', arc: '#EAE2D6', subW: 1, subH: 2, bgImage: 'glaze/Dune.jpg', arcImage: 'glaze/Birch.jpg' },
+  { name: 'Rect Sunbeam / Denim', background: '#C89030', arc: '#9898A8', subW: 1, subH: 2, bgImage: 'glaze/Sunbeam.jpg', arcImage: 'glaze/Denim.jpg' },
+  { name: 'Rect Birch / Dune',    background: '#EAE2D6', arc: '#DECAB0', subW: 1, subH: 2, bgImage: 'glaze/Birch.jpg', arcImage: 'glaze/Dune.jpg' },
 ]
 
 // ─── Cell ────────────────────────────────────────────────────────────────────
@@ -746,11 +753,26 @@ export function App() {
                         <image href={`${import.meta.env.BASE_URL}tiles/${tile.image}`} width={tw} height={th} />
                       </g>
                     ) : (
-                      /* Rectangle tile with SVG arc */
+                      /* Rectangle (or non-photo) tile — glaze textures + SVG arc */
                       <>
-                        <rect width={tw} height={th} fill={tile.background} />
+                        {tile.bgImage ? (
+                          <image href={`${import.meta.env.BASE_URL}tiles/${tile.bgImage}`} width={tw} height={th} preserveAspectRatio="xMidYMid slice" />
+                        ) : (
+                          <rect width={tw} height={th} fill={tile.background} />
+                        )}
                         <g transform={`rotate(${combinedRot * 90},${tw/2},${th/2})`}>
-                          <path d={`M 0,0 L ${tw},0 A ${tw},${th} 0 0,1 0,${th} Z`} fill={tile.arc} />
+                          <defs>
+                            <clipPath id={`arc-${r}-${c}`}>
+                              <path d={`M 0,0 L ${tw},0 A ${tw},${th} 0 0,1 0,${th} Z`} />
+                            </clipPath>
+                          </defs>
+                          {tile.arcImage ? (
+                            <image href={`${import.meta.env.BASE_URL}tiles/${tile.arcImage}`}
+                              width={tw} height={th} preserveAspectRatio="xMidYMid slice"
+                              clipPath={`url(#arc-${r}-${c})`} />
+                          ) : (
+                            <path d={`M 0,0 L ${tw},0 A ${tw},${th} 0 0,1 0,${th} Z`} fill={tile.arc} />
+                          )}
                         </g>
                       </>
                     )}
