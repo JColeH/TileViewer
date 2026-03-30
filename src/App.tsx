@@ -320,6 +320,80 @@ function DesignLibrary({ onLoad }: { onLoad: (hash: string) => void }) {
   )
 }
 
+// ─── Saved Designs (localStorage) ───────────────────────────────────────────
+
+interface SavedDesign { name: string; hash: string }
+const STORAGE_KEY = 'tile-visualizer-saved'
+
+function loadSaved(): SavedDesign[] {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') } catch { return [] }
+}
+function storeSaved(designs: SavedDesign[]) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(designs))
+}
+
+function SavedDesigns({ onLoad, currentHash }: { onLoad: (hash: string) => void; currentHash: string }) {
+  const [saved, setSaved] = useState<SavedDesign[]>(loadSaved)
+  const [expanded, setExpanded] = useState(false)
+
+  const handleSave = () => {
+    const name = prompt('Name this design:')
+    if (!name?.trim()) return
+    const next = [...saved, { name: name.trim(), hash: currentHash }]
+    setSaved(next)
+    storeSaved(next)
+  }
+
+  const handleDelete = (i: number) => {
+    const next = saved.filter((_, j) => j !== i)
+    setSaved(next)
+    storeSaved(next)
+  }
+
+  return (
+    <div style={{ marginBottom: 18 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 7 }}>
+        <div
+          onClick={() => setExpanded(!expanded)}
+          style={{
+            fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.7px',
+            color: '#666', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
+          }}
+        >
+          <span style={{ fontSize: 8 }}>{expanded ? '▼' : '▶'}</span>
+          My Designs ({saved.length})
+        </div>
+        <button onClick={handleSave} style={{
+          fontSize: 9, padding: '2px 8px', border: '1px solid #ddd', borderRadius: 3,
+          background: '#f4f4f4', cursor: 'pointer', color: '#555',
+        }}>+ Save Current</button>
+      </div>
+      {expanded && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {saved.length === 0 && (
+            <div style={{ fontSize: 10, color: '#bbb', textAlign: 'center', padding: 8 }}>No saved designs yet</div>
+          )}
+          {saved.map((d, i) => (
+            <div key={i} style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '5px 8px', borderRadius: 4, border: '1px solid #e8e8e8', background: 'white',
+            }}>
+              <span
+                onClick={() => onLoad(d.hash)}
+                style={{ fontSize: 11, color: '#333', cursor: 'pointer', flex: 1 }}
+              >{d.name}</span>
+              <button onClick={() => handleDelete(i)} style={{
+                fontSize: 9, padding: '1px 5px', border: 'none', background: 'none',
+                cursor: 'pointer', color: '#ccc',
+              }}>✕</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── URL state encoding / decoding ──────────────────────────────────────────
 
 // Template: each cell encoded as hex typeIndex (0-b) + rotation (0-3), row-major
@@ -404,11 +478,12 @@ export function App() {
   const layout = LAYOUTS[layoutKey]
   const { cols, rows, mask } = layout
 
-  // ── Sync state → URL hash ──
+  // ── Current hash (used for URL sync + saving) ──
+  const currentHash = encodeState(layoutKey, templateRows, templateCols, template, groutColor, tileSize, groutWidth, cells)
+
   useEffect(() => {
-    const hash = encodeState(layoutKey, templateRows, templateCols, template, groutColor, tileSize, groutWidth, cells)
-    window.history.replaceState(null, '', '#' + hash)
-  }, [layoutKey, templateRows, templateCols, template, groutColor, tileSize, groutWidth, cells])
+    window.history.replaceState(null, '', '#' + currentHash)
+  }, [currentHash])
 
   // ── Load a design from library ──
   const loadDesign = useCallback((hash: string) => {
@@ -547,7 +622,7 @@ export function App() {
           <div style={{ fontSize: 15, fontWeight: 700, color: '#111', marginBottom: 1 }}>Tile Visualizer</div>
           <div style={{ fontSize: 10, color: '#999', marginBottom: 8 }}>Kat+Roger 6×6 Arc · Pratt &amp; Larson</div>
           <div style={{ fontSize: 9, color: '#aaa', lineHeight: 1.5 }}>
-            Pick a tile, then left-click to paint and right-click to rotate. Use the template to set a repeating pattern, or browse the Design Library for curated layouts. Your design auto-saves to the URL — copy it to bookmark or share.
+            Pick a tile, then left-click to paint and right-click to rotate. Use the template to set a repeating pattern, or browse the Design Library for curated layouts. Save your favorites with "My Designs", or copy the URL to bookmark or share.
           </div>
           <div style={{ fontSize: 9, color: '#ccc', marginTop: 6 }}>Made with ❤️ for Maryna</div>
         </div>
@@ -608,6 +683,8 @@ export function App() {
             <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.7px', color: '#666', marginBottom: 4 }}>Grout: {groutWidth}px</div>
             <input type="range" min={1} max={10} value={groutWidth} onChange={e => setGroutWidth(Number(e.target.value))} style={{ width: '100%', accentColor: '#111' }} />
           </div>
+
+          <SavedDesigns onLoad={loadDesign} currentHash={currentHash} />
 
           <DesignLibrary onLoad={loadDesign} />
 
