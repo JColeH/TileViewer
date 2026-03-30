@@ -181,4 +181,79 @@ export const DESIGN_LIBRARY: Design[] = [
     keywords: ['wild', 'landscape', 'narrative', 'sky', 'earth', 'custom', 'artistic', 'layered', 'nature'],
     hash: 'l=staircase&ts=1x1&t=00&g=484040&sz=56&gw=3&r=0-0-0-3020302030200-0-0-0010001000100-0-0-3020302030200-0-0-0616061606160-0-0-362636263626150b15051b05150b152b35253b25352b3525190919091909190919293929392939293929190919091909190919243424342434243424140414041404140414243424342434243424140414041404140414',
   },
+  // ─── Wild Round 1: Optical Illusions ────────────────────────────────────
+  {
+    name: 'Spiral',
+    rating: 9,
+    description: 'Rotations converge toward the center creating a genuine vortex, with Surf/Sunbeam core glowing through Sunbeam, Storm, and Basalt rings. Black grout. Stop-people-in-their-tracks drama.',
+    keywords: ['optical', 'spiral', 'vortex', 'dramatic', 'teal', 'gold', 'custom', 'illusion', 'hypnotic'],
+    hash: 'l=staircase&ts=1x1&t=00&g=201818&sz=56&gw=3&r=0-0-0-0414141414140-0-0-0414141414140-0-0-0515151515140-0-0-0515151515150-0-0-061616161515050606061616161615060606061616161616060606071717161616060606072727262626363636373727262626363636363626262626353636363626262625353536363626262525353535353525252525',
+  },
+  // ─── Wild Round 2: Nature ───────────────────────────────────────────────
+  {
+    name: 'Topography',
+    rating: 8.5,
+    description: 'Contour lines radiating from two peaks — one near the door, one in the lower area — referencing the two staircases. Map-like quality that\'s intellectually satisfying.',
+    keywords: ['nature', 'topography', 'contour', 'map', 'organic', 'custom', 'intellectual', 'two-peaks'],
+    hash: 'l=staircase&ts=1x1&t=00&g=484040&sz=56&gw=3&r=0-0-0-3507102035000-0-0-0517203507150-0-0-1527300517250-0-0-2537001527350-0-0-350710203500102030051527300010253505152535071727350717273707152535071020300010273505102035051520300715203507172735001725300015253500102735071020300010273505152737071727350510',
+  },
+  {
+    name: 'Tide Pools',
+    rating: 9,
+    description: 'Jewel-like pools of color scattered across a Storm/Birch rock field — teal near the door, burgundy by the stairs, gold in the center. Like discovering a rocky shoreline. Organic, surprising, personal.',
+    keywords: ['nature', 'pools', 'organic', 'scattered', 'jewel', 'colorful', 'custom', 'coastal', 'discovery'],
+    hash: 'l=staircase&ts=1x1&t=00&g=686060&sz=56&gw=3&r=0-0-0-3520372737200-0-0-0510071707100-0-0-3020372737200-0-0-0717071000150-0-0-372737203525100b1b001707100515203b2b3b2030263020150010001006160610253525352636263626100010051006100a102838283020302a3a2a180818001505100a10283828302535253025100010051505150515',
+  },
+  // ─── Wild Round 3: Cultural ─────────────────────────────────────────────
+  {
+    name: 'Sashiko',
+    rating: 8,
+    description: 'Japanese stitching cross-hatch with Surf/Sunbeam nodes on Birch/Denim field. White grout disappears. Meditative, quiet, deeply considered. Wabi-sabi energy.',
+    keywords: ['cultural', 'japanese', 'sashiko', 'meditative', 'minimal', 'custom', 'textile', 'zen'],
+    hash: 'l=staircase&ts=1x1&t=00&g=F2F0EC&sz=56&gw=3&r=0-0-0-1712121712120-0-0-0210000200100-0-0-0220300230200-0-0-1212171212170-0-0-302002203002100002001002100002121712121712121712100210000200100210200220300230200220171212171212171212023020022030023020020010021000020010121217121217121217100002001002100002',
+  },
+  {
+    name: 'Zellige',
+    rating: 9,
+    description: 'Maximalist Moroccan palette — teal, burgundy, gold, coral, dark all jumbled with warm linen grout. Looks exactly like handmade zellige in a Marrakech riad. Chaotic up close, harmonious at distance.',
+    keywords: ['cultural', 'moroccan', 'zellige', 'maximalist', 'colorful', 'custom', 'handmade', 'bold', 'riad'],
+    hash: 'l=staircase&ts=1x1&t=00&g=E0D8C8&sz=56&gw=3&r=0-0-0-35061b162b340-0-0-062b0725361b0-0-0-2b07372704340-0-0-343725272b1b0-0-0-1814272b3638273a152b04172b04171a341b0726053817363a3b25160b07342a1728262b3a3b373438361525350515253505150b173b163814371b3a2b16053b28170a3414161716040a0506073b040b15283a34061b27',
+  },
+  {
+    name: 'Kilim',
+    rating: 8,
+    description: 'Woven horizontal bands of Redwood/Coral, Sunbeam, Storm, and Surf with triangle motifs. Reads as a textile runner — perfect for a hallway. Warm and cultural.',
+    keywords: ['cultural', 'kilim', 'woven', 'textile', 'horizontal', 'custom', 'runner', 'warm', 'tribal'],
+    hash: 'l=staircase&ts=1x1&t=00&g=484040&sz=56&gw=3&r=0-0-0-2804082828040-0-0-2804082828040-0-0-0606262606060-0-0-0606262606060-0-0-250505252505050525250505252505072727040727270407072727040727270407050525250505252505050525250505252505062626060626260606062626060626260606040828280408282804040828280408282804',
+  },
+  // ─── Wild Round 4: Conceptual ───────────────────────────────────────────
+  {
+    name: 'Erosion',
+    rating: 8.5,
+    description: 'Ordered Basalt/Birch checkerboard at the door gradually breaks down with warm tiles intruding deeper in. Formality yielding to warmth — a story in tile.',
+    keywords: ['conceptual', 'erosion', 'decay', 'order-to-chaos', 'narrative', 'custom', 'unique', 'artistic'],
+    hash: 'l=staircase&ts=1x1&t=00&g=484040&sz=56&gw=3&r=0-0-0-3024302430240-0-0-0410041004100-0-0-3024302430240-0-0-0410041004100-0-0-3024302430241004080410041004102430243024072406241004100410041004080a3007300630243024100410061008101a102430243008300a30070604180417041007102408240a241724182410270a040704060418',
+  },
+  {
+    name: 'Gravity',
+    rating: 8.5,
+    description: 'Tiles "settle" to the bottom in warm layers — sparse airy top near the door, dense warm bottom hidden by the shoe rack. You\'d never guess the concept, it just feels right.',
+    keywords: ['conceptual', 'gravity', 'settling', 'sparse', 'dense', 'custom', 'poetic', 'practical', 'layered'],
+    hash: 'l=staircase&ts=1x1&t=00&g=484040&sz=56&gw=3&r=0-0-0-3525352535250-0-0-0515051505150-0-0-3525352535250-0-0-0515051505150-0-0-3525352535251505150515051505152536253526352535251505160515061505162535253a2535253a251a0515051a0a150515283828352535283828180818081808180815243424342434243424140414041404140414',
+  },
+  // ─── Wild Round 5: Maximum Drama ────────────────────────────────────────
+  {
+    name: 'Eclipse',
+    rating: 9,
+    description: 'Redwood/Sunbeam crescent against a dark Basalt disc, Sunbeam corona, on Denim/Birch night sky with black grout. Celestial and theatrical — a conversation starter for decades.',
+    keywords: ['dramatic', 'eclipse', 'celestial', 'art', 'crescent', 'custom', 'black', 'theatrical', 'moon'],
+    hash: 'l=staircase&ts=1x1&t=00&g=201818&sz=56&gw=3&r=0-0-0-3222322232220-0-0-0212021202120-0-0-3222322232220-0-0-0616061202120-0-0-36263626322212061604140416061222362a34243424362212061a0a140414061222362a3a2a342a36221206160a1a0a160612223226362636263222120212061606120212223222322232223222120212021202120212',
+  },
+  {
+    name: 'Stained Glass',
+    rating: 8.5,
+    description: 'Basalt "lead lines" divide glowing panels of teal, coral, gold, and burgundy on black grout. Genuinely evokes a church window. The kind of floor that makes you forget where you were going.',
+    keywords: ['dramatic', 'stained-glass', 'church', 'panels', 'colorful', 'custom', 'gothic', 'bold', 'lead'],
+    hash: 'l=staircase&ts=1x1&t=00&g=201818&sz=56&gw=3&r=0-0-0-1404141414040-0-0-0704081808040-0-0-3704382838040-0-0-1404141414040-0-0-36043b2b3b0404061606040b1b0b0404141414041414140404071707040a1a0a0404372737043a2a3a0404141414041414140404362636043b2b3b0404061606040b1b0b04041414140414141404040717070408180804',
+  },
 ]
