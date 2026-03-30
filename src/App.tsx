@@ -545,7 +545,11 @@ export function App() {
         {/* Header */}
         <div style={{ padding: '16px 18px 12px', borderBottom: '1px solid #f0f0f0' }}>
           <div style={{ fontSize: 15, fontWeight: 700, color: '#111', marginBottom: 1 }}>Tile Visualizer</div>
-          <div style={{ fontSize: 10, color: '#999' }}>Kat+Roger 6×6 Arc · Pratt &amp; Larson</div>
+          <div style={{ fontSize: 10, color: '#999', marginBottom: 8 }}>Kat+Roger 6×6 Arc · Pratt &amp; Larson</div>
+          <div style={{ fontSize: 9, color: '#aaa', lineHeight: 1.5 }}>
+            Pick a tile, then left-click to paint and right-click to rotate. Use the template to set a repeating pattern, or browse the Design Library for curated layouts. Your design auto-saves to the URL — copy it to bookmark or share.
+          </div>
+          <div style={{ fontSize: 9, color: '#ccc', marginTop: 6 }}>Made with ❤️ for Maryna</div>
         </div>
 
         {/* Controls */}
