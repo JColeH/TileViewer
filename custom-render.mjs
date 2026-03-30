@@ -5,7 +5,7 @@
  */
 import { execSync } from 'child_process'
 
-const STAIRCASE = { cols: 9, rows: 14, upperOffset: 3, upperRows: 5 }
+const STAIRCASE = { cols: 9, rows: 17, upperOffset: 4, upperRows: 6 }
 
 function inMask(r, c) {
   return r < STAIRCASE.upperRows ? c >= STAIRCASE.upperOffset : true

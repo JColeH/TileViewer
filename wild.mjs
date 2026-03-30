@@ -5,7 +5,7 @@
  */
 import { execSync } from 'child_process'
 
-const S = { cols: 9, rows: 14, upperOffset: 3, upperRows: 5 }
+const S = { cols: 9, rows: 17, upperOffset: 4, upperRows: 6 }
 function inMask(r, c) { return r < S.upperRows ? c >= S.upperOffset : true }
 function detectPort() {
   for (const p of [5173, 5174, 5175, 5176]) {

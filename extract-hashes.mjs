@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /** Extract URL hashes for all curated designs — no screenshots needed */
 
-const S = { cols: 9, rows: 14, upperOffset: 3, upperRows: 5 }
+const S = { cols: 9, rows: 17, upperOffset: 4, upperRows: 6 }
 function inMask(r, c) { return r < S.upperRows ? c >= S.upperOffset : true }
 
 function buildHash(designFn, grout) {

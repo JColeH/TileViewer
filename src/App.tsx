@@ -10,60 +10,37 @@ interface TileType {
   name: string
   background: string
   arc: string
-  image?: string          // full tile photo (square tiles)
-  bgImage?: string        // background glaze texture (rectangle tiles)
-  arcImage?: string       // arc glaze texture (rectangle tiles)
-  subW: number            // width in sub-cells at rotation 0
-  subH: number            // height in sub-cells at rotation 0
-}
-
-// Effective sub-cell size after rotation (odd rotations swap w/h)
-function tileDims(t: TileType, rot: Rotation): { w: number; h: number } {
-  return (rot === 1 || rot === 3) ? { w: t.subH, h: t.subW } : { w: t.subW, h: t.subH }
+  image: string
 }
 
 // Images are naturally oriented with arc at bottom-right.
+// To show rotation r, we rotate the image by ((r - 2 + 4) % 4) * 90 degrees.
 function imgRot(r: Rotation): number { return ((r - 2 + 4) % 4) * 90 }
 
-// ─── Square tiles (2×2 sub-cells) — use product photos ─────────────────────
+// Images are naturally oriented with arc at bottom-right (rotation 2 in display terms)
 const TILE_TYPES: TileType[] = [
-  { name: 'Birch / Denim',      background: '#EAE2D6', arc: '#9898A8', image: 'Kat-Roger-6x6-arc-Birch-Denim-230x230.jpg', subW: 2, subH: 2 },
-  { name: 'Birch / Dune',       background: '#EAE2D6', arc: '#DECAB0', image: 'Kat-Roger-6x6-arc-Birch-Dune-230x230.jpg', subW: 2, subH: 2 },
-  { name: 'Denim / Birch',      background: '#9898A8', arc: '#EAE2D6', image: 'Kat-Roger-6x6-arc-Denim-Birch-230x230.jpg', subW: 2, subH: 2 },
-  { name: 'Dune / Birch',       background: '#DECAB0', arc: '#EAE2D6', image: 'Kat-Roger-6x6-arc-Dune-Birch-230x230.jpg', subW: 2, subH: 2 },
-  { name: 'Basalt / Dune',      background: '#302828', arc: '#DECAB0', image: 'Kat-Roger-6x6-arc-Basalt-Dune-230x230.jpg', subW: 2, subH: 2 },
-  { name: 'Storm / Birch',      background: '#888880', arc: '#EAE2D6', image: 'Kat-Roger-6x6-arc-Storm-Birch-230x230.jpg', subW: 2, subH: 2 },
-  { name: 'Sunbeam / Denim',    background: '#C89030', arc: '#9898A8', image: 'Kat-Roger-6x6-arc-Sunbeam-Denim-230x230.jpg', subW: 2, subH: 2 },
-  { name: 'Surf / Sunbeam',     background: '#486878', arc: '#C89030', image: 'Kat-Roger-6x6-arc-Surf-Sunbeam-230x230.jpg', subW: 2, subH: 2 },
-  { name: 'Redwood / Coral',    background: '#782828', arc: '#C87858', image: 'Kat-Roger-6x6-arc-Redwood-Coral-230x230.jpg', subW: 2, subH: 2 },
-  { name: 'Redwood / Dune',     background: '#782828', arc: '#DECAB0', image: 'Kat-Roger-6x6-arc-Redwood-Dune-230x230.jpg', subW: 2, subH: 2 },
-  { name: 'Redwood / Sunbeam',  background: '#782828', arc: '#C89030', image: 'Kat-Roger-6x6-arc-Redwood-Sunbeam-2-230x230.jpg', subW: 2, subH: 2 },
-  { name: 'Redwood / Surf',     background: '#782828', arc: '#486878', image: 'Kat-Roger-6x6-arc-Redwood-Surf-230x230.jpg', subW: 2, subH: 2 },
-  // ─── Rectangle tiles (1×2 sub-cells) — glaze texture + SVG arc ────────────
-  // bgImage = solid glaze texture for background, arcImage = glaze texture for arc
-  { name: 'Rect Birch / Denim',   background: '#EAE2D6', arc: '#9898A8', subW: 1, subH: 2, bgImage: 'glaze/Birch.jpg', arcImage: 'glaze/Denim.jpg' },
-  { name: 'Rect Denim / Birch',   background: '#9898A8', arc: '#EAE2D6', subW: 1, subH: 2, bgImage: 'glaze/Denim.jpg', arcImage: 'glaze/Birch.jpg' },
-  { name: 'Rect Basalt / Dune',   background: '#302828', arc: '#DECAB0', subW: 1, subH: 2, bgImage: 'glaze/Basalt.jpg', arcImage: 'glaze/Dune.jpg' },
-  { name: 'Rect Surf / Sunbeam',  background: '#486878', arc: '#C89030', subW: 1, subH: 2, bgImage: 'glaze/Surf.jpg', arcImage: 'glaze/Sunbeam.jpg' },
-  { name: 'Rect Redwood / Coral', background: '#782828', arc: '#C87858', subW: 1, subH: 2, bgImage: 'glaze/Redwood.jpg', arcImage: 'glaze/Coral.jpg' },
-  { name: 'Rect Storm / Birch',   background: '#888880', arc: '#EAE2D6', subW: 1, subH: 2, bgImage: 'glaze/storm.jpg', arcImage: 'glaze/Birch.jpg' },
-  { name: 'Rect Redwood / Surf',  background: '#782828', arc: '#486878', subW: 1, subH: 2, bgImage: 'glaze/Redwood.jpg', arcImage: 'glaze/Surf.jpg' },
-  { name: 'Rect Dune / Birch',    background: '#DECAB0', arc: '#EAE2D6', subW: 1, subH: 2, bgImage: 'glaze/Dune.jpg', arcImage: 'glaze/Birch.jpg' },
-  { name: 'Rect Sunbeam / Denim', background: '#C89030', arc: '#9898A8', subW: 1, subH: 2, bgImage: 'glaze/Sunbeam.jpg', arcImage: 'glaze/Denim.jpg' },
-  { name: 'Rect Birch / Dune',    background: '#EAE2D6', arc: '#DECAB0', subW: 1, subH: 2, bgImage: 'glaze/Birch.jpg', arcImage: 'glaze/Dune.jpg' },
+  { name: 'Birch / Denim',      background: '#EAE2D6', arc: '#9898A8', image: 'Kat-Roger-6x6-arc-Birch-Denim-230x230.jpg' },
+  { name: 'Birch / Dune',       background: '#EAE2D6', arc: '#DECAB0', image: 'Kat-Roger-6x6-arc-Birch-Dune-230x230.jpg' },
+  { name: 'Denim / Birch',      background: '#9898A8', arc: '#EAE2D6', image: 'Kat-Roger-6x6-arc-Denim-Birch-230x230.jpg' },
+  { name: 'Dune / Birch',       background: '#DECAB0', arc: '#EAE2D6', image: 'Kat-Roger-6x6-arc-Dune-Birch-230x230.jpg' },
+  { name: 'Basalt / Dune',      background: '#302828', arc: '#DECAB0', image: 'Kat-Roger-6x6-arc-Basalt-Dune-230x230.jpg' },
+  { name: 'Storm / Birch',      background: '#888880', arc: '#EAE2D6', image: 'Kat-Roger-6x6-arc-Storm-Birch-230x230.jpg' },
+  { name: 'Sunbeam / Denim',    background: '#C89030', arc: '#9898A8', image: 'Kat-Roger-6x6-arc-Sunbeam-Denim-230x230.jpg' },
+  { name: 'Surf / Sunbeam',     background: '#486878', arc: '#C89030', image: 'Kat-Roger-6x6-arc-Surf-Sunbeam-230x230.jpg' },
+  { name: 'Redwood / Coral',    background: '#782828', arc: '#C87858', image: 'Kat-Roger-6x6-arc-Redwood-Coral-230x230.jpg' },
+  { name: 'Redwood / Dune',     background: '#782828', arc: '#DECAB0', image: 'Kat-Roger-6x6-arc-Redwood-Dune-230x230.jpg' },
+  { name: 'Redwood / Sunbeam',  background: '#782828', arc: '#C89030', image: 'Kat-Roger-6x6-arc-Redwood-Sunbeam-2-230x230.jpg' },
+  { name: 'Redwood / Surf',     background: '#782828', arc: '#486878', image: 'Kat-Roger-6x6-arc-Redwood-Surf-230x230.jpg' },
 ]
 
-// ─── Cell (sub-grid) ─────────────────────────────────────────────────────────
-// Grid is at sub-cell resolution (2× the tile-level resolution).
-// Square tiles anchor at even (sr,sc) and occupy 2×2. Rectangles occupy 1×2 or 2×1.
+// ─── Cell ────────────────────────────────────────────────────────────────────
 
 interface Cell {
   rotation: Rotation
   typeOverride?: number  // if set, overrides the template type for this cell
-  anchor: boolean        // true = top-left corner of a tile; false = claimed by neighbor
 }
 
-// ─── Patterns (tile-level coordinates) ──────────────────────────────────────
+// ─── Patterns ───────────────────────────────────────────────────────────────
 
 type PatternFn = (r: number, c: number) => Rotation
 
@@ -80,16 +57,9 @@ const PATTERNS: { key: string; label: string; fn: PatternFn }[] = [
   { key: 'checker',label: 'Checker',    fn: (r,c) => ((r+c)%2===0 ? 0 : 2) as Rotation },
 ]
 
-// Make a sub-grid filled with 2×2 square tiles. Pattern fn uses tile-level coords.
-function makeGrid(subRows: number, subCols: number, fn: PatternFn = () => 0): Cell[][] {
-  return Array.from({ length: subRows }, (_, sr) =>
-    Array.from({ length: subCols }, (_, sc) => {
-      const isAnchor = sr % 2 === 0 && sc % 2 === 0
-      return {
-        rotation: isAnchor ? fn(Math.floor(sr / 2), Math.floor(sc / 2)) : 0 as Rotation,
-        anchor: isAnchor,
-      }
-    })
+function makeGrid(rows: number, cols: number, fn: PatternFn = () => 0): Cell[][] {
+  return Array.from({ length: rows }, (_, r) =>
+    Array.from({ length: cols }, (_, c) => ({ rotation: fn(r, c) }))
   )
 }
 
@@ -114,11 +84,11 @@ const TEMPLATE_PRESETS: { label: string; rows: number; cols: number }[] = [
   { label: '4×4', rows: 4, cols: 4 },
 ]
 
-// ─── Staircase room layout (sub-cell resolution: 2× tile-level) ─────────────
-const STAIRCASE_COLS         = 18   // 9 tiles × 2
-const STAIRCASE_ROWS         = 28   // 14 tiles × 2
-const STAIRCASE_UPPER_OFFSET = 6    // 3 tiles × 2
-const STAIRCASE_UPPER_ROWS   = 10   // 5 tiles × 2
+// ─── Staircase room layout ──────────────────────────────────────────────────
+const STAIRCASE_COLS         = 9
+const STAIRCASE_ROWS         = 17
+const STAIRCASE_UPPER_OFFSET = 4
+const STAIRCASE_UPPER_ROWS   = 6
 
 function staircaseMask(): boolean[][] {
   return Array.from({ length: STAIRCASE_ROWS }, (_, r) =>
@@ -139,7 +109,7 @@ interface Layout {
 
 const LAYOUTS: Record<string, Layout> = {
   staircase: { label: 'Staircase Room', cols: STAIRCASE_COLS, rows: STAIRCASE_ROWS, mask: STAIRCASE_MASK, defaultPattern: 'allBR' },
-  grid:      { label: 'Free Grid',      cols: 16,             rows: 16,             mask: null,            defaultPattern: 'pinIn' },
+  grid:      { label: 'Free Grid',      cols: 8,              rows: 8,              mask: null,            defaultPattern: 'pinIn' },
 }
 
 // ─── Template editor ────────────────────────────────────────────────────────
@@ -426,18 +396,18 @@ function SavedDesigns({ onLoad, currentHash }: { onLoad: (hash: string) => void;
 
 // ─── URL state encoding / decoding ──────────────────────────────────────────
 
-// ─── URL V2 encoding (sub-grid) — only encodes anchor cells ─────────────────
+// Template: each cell encoded as hex typeIndex (0-b) + rotation (0-3), row-major
+// Cell rotations: string of 0-3 digits, row-major
 function encodeState(
   layoutKey: string, tRows: number, tCols: number, tmpl: TemplateCell[][],
   grout: string, tileSize: number, groutWidth: number, cells: Cell[][],
 ) {
   const t = tmpl.flatMap(row => row.map(c => c.typeIndex.toString(16) + c.rotation)).join('')
-  // Encode only anchor cells: rotation + override hex or '-'
-  const r = cells.flatMap(row => row.filter(c => c.anchor).map(c =>
+  // Each cell: rotation (0-3) + override type as hex or '-' for none
+  const r = cells.flatMap(row => row.map(c =>
     c.rotation.toString() + (c.typeOverride != null ? c.typeOverride.toString(16) : '-')
   )).join('')
   const params = new URLSearchParams()
-  params.set('v', '2')
   params.set('l', layoutKey)
   params.set('ts', `${tRows}x${tCols}`)
   params.set('t', t)
@@ -448,11 +418,9 @@ function encodeState(
   return params.toString()
 }
 
-// ─── URL decoding — supports V1 (old tile-level) and V2 (sub-grid) ──────────
 function decodeState(hash: string) {
   const params = new URLSearchParams(hash.replace(/^#/, ''))
   if (!params.has('l')) return null
-  const version = Number(params.get('v') ?? '1')
   const layoutKey = params.get('l') as 'staircase' | 'grid'
   const [tRows, tCols] = (params.get('ts') ?? '2x2').split('x').map(Number)
   const tStr = params.get('t') ?? ''
@@ -473,44 +441,15 @@ function decodeState(hash: string) {
   const groutWidth = Number(params.get('gw') ?? 3)
   const layout = LAYOUTS[layoutKey] ?? LAYOUTS.staircase
   const rStr = params.get('r') ?? ''
-
-  let cells: Cell[][]
-  if (version === 1) {
-    // V1: old tile-level grid → upscale each cell to 2×2 anchor block
-    const oldCols = layout.cols / 2
-    const oldRows = layout.rows / 2
-    cells = Array.from({ length: layout.rows }, (_, sr) =>
-      Array.from({ length: layout.cols }, (_, sc) => {
-        const isAnchor = sr % 2 === 0 && sc % 2 === 0
-        if (!isAnchor) return { rotation: 0 as Rotation, anchor: false }
-        const or = sr / 2, oc = sc / 2
-        const i = (or * oldCols + oc) * 2
-        const rot = (Number(rStr[i] ?? '0') % 4) as Rotation
-        const ovChar = rStr[i + 1]
-        const typeOverride = ovChar && ovChar !== '-' ? parseInt(ovChar, 16) : undefined
-        return { rotation: rot, typeOverride, anchor: true }
-      })
-    )
-  } else {
-    // V2: anchors only in the rStr, expand to sub-grid
-    const anchors: { rot: Rotation; typeOverride?: number }[] = []
-    for (let i = 0; i < rStr.length; i += 2) {
+  const cells: Cell[][] = Array.from({ length: layout.rows }, (_, r) =>
+    Array.from({ length: layout.cols }, (_, c) => {
+      const i = (r * layout.cols + c) * 2
       const rot = (Number(rStr[i] ?? '0') % 4) as Rotation
       const ovChar = rStr[i + 1]
       const typeOverride = ovChar && ovChar !== '-' ? parseInt(ovChar, 16) : undefined
-      anchors.push({ rot, typeOverride })
-    }
-    let ai = 0
-    cells = Array.from({ length: layout.rows }, (_, sr) =>
-      Array.from({ length: layout.cols }, (_, sc) => {
-        const isAnchor = sr % 2 === 0 && sc % 2 === 0
-        if (!isAnchor) return { rotation: 0 as Rotation, anchor: false }
-        const a = anchors[ai++] ?? { rot: 0 as Rotation }
-        return { rotation: a.rot, typeOverride: a.typeOverride, anchor: true }
-      })
-    )
-  }
-
+      return { rotation: rot, typeOverride }
+    })
+  )
   const preset = TEMPLATE_PRESETS.find(p => p.rows === tRows && p.cols === tCols)?.label ?? ''
   return { layoutKey, tRows, tCols, tmpl, grout, tileSize, groutWidth, cells, preset }
 }
@@ -598,28 +537,23 @@ export function App() {
     setTemplatePreset(TEMPLATE_PRESETS.find(p => p.rows === newRows && p.cols === newCols)?.label ?? '')
   }, [])
 
-  // ── Pattern apply (uses tile-level coords for anchors) ──
+  // ── Pattern apply ──
   const applyPattern = useCallback((fn: PatternFn) => {
-    setCells(prev => prev.map((row, sr) => row.map((cell, sc) => {
-      if (!cell.anchor) return cell
-      return { ...cell, rotation: fn(Math.floor(sr / 2), Math.floor(sc / 2)) }
-    })))
+    setCells(prev => prev.map((row, r) => row.map((cell, c) => ({ ...cell, rotation: fn(r, c) }))))
   }, [])
 
   const randomize = useCallback(() => {
-    setCells(prev => prev.map(row => row.map(cell => {
-      if (!cell.anchor) return cell
-      return { ...cell, rotation: Math.floor(Math.random() * 4) as Rotation }
-    })))
+    setCells(prev => prev.map(row => row.map(cell => ({
+      ...cell, rotation: Math.floor(Math.random() * 4) as Rotation,
+    }))))
   }, [])
 
-  // ── Left-click: paint anchor with selected type ──
-  const handleTilePaint = useCallback((sr: number, sc: number) => {
+  // ── Left-click: paint with selected type ──
+  const handleTilePaint = useCallback((r: number, c: number) => {
     setCells(prev => prev.map((row, ri) =>
       row.map((cell, ci) => {
-        if (ri !== sr || ci !== sc || !cell.anchor) return cell
-        const tr = Math.floor(sr / 2), tc = Math.floor(sc / 2)
-        const tmplType = template[tr % templateRows][tc % templateCols].typeIndex
+        if (ri !== r || ci !== c) return cell
+        const tmplType = template[r % templateRows][c % templateCols].typeIndex
         return {
           ...cell,
           typeOverride: selectedType === tmplType ? undefined : selectedType,
@@ -628,22 +562,22 @@ export function App() {
     ))
   }, [selectedType, template, templateRows, templateCols])
 
-  // ── Right-click: rotate anchor ──
-  const handleTileRotate = useCallback((sr: number, sc: number) => {
+  // ── Right-click: rotate ──
+  const handleTileRotate = useCallback((r: number, c: number) => {
     setCells(prev => prev.map((row, ri) =>
       row.map((cell, ci) => {
-        if (ri !== sr || ci !== sc || !cell.anchor) return cell
+        if (ri !== r || ci !== c) return cell
         return { ...cell, rotation: ((cell.rotation + 1) % 4) as Rotation }
       })
     ))
   }, [])
 
-  // ── Shift-click: reset anchor to template ──
-  const handleTileReset = useCallback((sr: number, sc: number) => {
+  // ── Middle-click: reset cell to template ──
+  const handleTileReset = useCallback((r: number, c: number) => {
     setCells(prev => prev.map((row, ri) =>
       row.map((cell, ci) => {
-        if (ri !== sr || ci !== sc || !cell.anchor) return cell
-        return { rotation: 0 as Rotation, anchor: true }
+        if (ri !== r || ci !== c) return cell
+        return { rotation: 0 as Rotation }
       })
     ))
   }, [])
@@ -651,7 +585,7 @@ export function App() {
   // ── Reset all overrides ──
   const resetAllOverrides = useCallback(() => {
     setCells(prev => prev.map(row => row.map(cell => ({
-      rotation: cell.rotation, anchor: cell.anchor,
+      rotation: cell.rotation,
     }))))
   }, [])
 
@@ -666,12 +600,10 @@ export function App() {
     URL.revokeObjectURL(url)
   }, [layoutKey])
 
-  // ── Sizes (sub-grid) ──
-  // halfPitch = distance between adjacent sub-cell origins. Designed so that
-  // a 2×2 square tile renders at exactly tileSize×tileSize (pixel-identical to old layout).
-  const halfPitch = (tileSize + groutWidth) / 2
-  const svgWidth  = cols * halfPitch + groutWidth
-  const svgHeight = rows * halfPitch + groutWidth
+  // ── Sizes ──
+  const cellSize  = tileSize + groutWidth
+  const svgWidth  = cols * cellSize + groutWidth
+  const svgHeight = rows * cellSize + groutWidth
 
   const btnBase: React.CSSProperties = {
     padding: '5px 4px', fontSize: 11, background: '#f4f4f4',
@@ -772,65 +704,24 @@ export function App() {
         <svg id="canvas" ref={svgRef} width={svgWidth} height={svgHeight}
           style={{ background: 'white', boxShadow: '0 2px 16px rgba(0,0,0,0.10)', display: 'block' }}
           xmlns="http://www.w3.org/2000/svg">
-          {cells.slice(0, rows).flatMap((row, sr) =>
-            row.slice(0, cols).map((cell, sc) => {
-              // Only render at anchor sub-cells (top-left of each tile)
-              if (!cell.anchor) return null
-              if (mask && !mask[sr]?.[sc]) return null
-              // Template lookup uses tile-level coords
-              const tr = Math.floor(sr / 2), tc = Math.floor(sc / 2)
-              const tmplCell = template[tr % templateRows][tc % templateCols]
+          {cells.slice(0, rows).flatMap((row, r) =>
+            row.slice(0, cols).map((cell, c) => {
+              if (mask && !mask[r]?.[c]) return null
+              const tx = c * cellSize + groutWidth
+              const ty = r * cellSize + groutWidth
+              const tmplCell = template[r % templateRows][c % templateCols]
               const typeIdx = cell.typeOverride ?? tmplCell.typeIndex
               const tile = TILE_TYPES[typeIdx]
-              const combinedRot = ((cell.rotation + tmplCell.rotation) % 4) as Rotation
-              // Tile pixel size: dims in sub-cells × halfPitch, minus trailing grout
-              const dims = tileDims(tile, combinedRot)
-              const tw = dims.w * halfPitch - groutWidth
-              const th = dims.h * halfPitch - groutWidth
-              // Position
-              const px = sc * halfPitch + groutWidth
-              const py = sr * halfPitch + groutWidth
-              // Grout background rect (covers tile footprint + surrounding grout)
-              const gx = sc * halfPitch
-              const gy = sr * halfPitch
-              const gw = dims.w * halfPitch + groutWidth
-              const gh = dims.h * halfPitch + groutWidth
               return (
-                <g key={`${sr}-${sc}`}>
-                  <rect x={gx} y={gy} width={gw} height={gh} fill={groutColor} />
-                  <g transform={`translate(${px},${py})`}
-                    onClick={e => e.shiftKey ? handleTileReset(sr, sc) : handleTilePaint(sr, sc)}
-                    onContextMenu={e => { e.preventDefault(); handleTileRotate(sr, sc) }}
+                <g key={`${r}-${c}`}>
+                  <rect x={c*cellSize} y={r*cellSize} width={cellSize+groutWidth} height={cellSize+groutWidth} fill={groutColor} />
+                  <g transform={`translate(${tx},${ty})`}
+                    onClick={e => e.shiftKey ? handleTileReset(r, c) : handleTilePaint(r, c)}
+                    onContextMenu={e => { e.preventDefault(); handleTileRotate(r, c) }}
                     style={{ cursor: 'pointer' }}>
-                    {tile.image ? (
-                      /* Square tile with product photo */
-                      <g transform={`rotate(${imgRot(combinedRot)},${tw/2},${th/2})`}>
-                        <image href={`${import.meta.env.BASE_URL}tiles/${tile.image}`} width={tw} height={th} />
-                      </g>
-                    ) : (
-                      /* Rectangle (or non-photo) tile — glaze textures + SVG arc */
-                      <>
-                        {tile.bgImage ? (
-                          <image href={`${import.meta.env.BASE_URL}tiles/${tile.bgImage}`} width={tw} height={th} preserveAspectRatio="xMidYMid slice" />
-                        ) : (
-                          <rect width={tw} height={th} fill={tile.background} />
-                        )}
-                        <g transform={`rotate(${combinedRot * 90},${tw/2},${th/2})`}>
-                          <defs>
-                            <clipPath id={`arc-${sr}-${sc}`}>
-                              <path d={`M 0,0 L ${tw},0 A ${tw},${th} 0 0,1 0,${th} Z`} />
-                            </clipPath>
-                          </defs>
-                          {tile.arcImage ? (
-                            <image href={`${import.meta.env.BASE_URL}tiles/${tile.arcImage}`}
-                              width={tw} height={th} preserveAspectRatio="xMidYMid slice"
-                              clipPath={`url(#arc-${sr}-${sc})`} />
-                          ) : (
-                            <path d={`M 0,0 L ${tw},0 A ${tw},${th} 0 0,1 0,${th} Z`} fill={tile.arc} />
-                          )}
-                        </g>
-                      </>
-                    )}
+                    <g transform={`rotate(${imgRot(((cell.rotation + tmplCell.rotation) % 4) as Rotation)},${tileSize/2},${tileSize/2})`}>
+                      <image href={`${import.meta.env.BASE_URL}tiles/${tile.image}`} width={tileSize} height={tileSize} />
+                    </g>
                   </g>
                 </g>
               )
