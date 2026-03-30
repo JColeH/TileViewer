@@ -375,18 +375,12 @@ export function App() {
     }))))
   }, [])
 
-  // ── Tile click: paint with selected type, or rotate if already that type ──
-  const handleTileClick = useCallback((r: number, c: number) => {
+  // ── Left-click: paint with selected type ──
+  const handleTilePaint = useCallback((r: number, c: number) => {
     setCells(prev => prev.map((row, ri) =>
       row.map((cell, ci) => {
         if (ri !== r || ci !== c) return cell
         const tmplType = template[r % templateRows][c % templateCols].typeIndex
-        const effectiveType = cell.typeOverride ?? tmplType
-        if (effectiveType === selectedType) {
-          // Already the selected type — rotate
-          return { ...cell, rotation: ((cell.rotation + 1) % 4) as Rotation }
-        }
-        // Paint with selected type (override if differs from template, clear if matches)
         return {
           ...cell,
           typeOverride: selectedType === tmplType ? undefined : selectedType,
@@ -394,6 +388,33 @@ export function App() {
       })
     ))
   }, [selectedType, template, templateRows, templateCols])
+
+  // ── Right-click: rotate ──
+  const handleTileRotate = useCallback((r: number, c: number) => {
+    setCells(prev => prev.map((row, ri) =>
+      row.map((cell, ci) => {
+        if (ri !== r || ci !== c) return cell
+        return { ...cell, rotation: ((cell.rotation + 1) % 4) as Rotation }
+      })
+    ))
+  }, [])
+
+  // ── Middle-click: reset cell to template ──
+  const handleTileReset = useCallback((r: number, c: number) => {
+    setCells(prev => prev.map((row, ri) =>
+      row.map((cell, ci) => {
+        if (ri !== r || ci !== c) return cell
+        return { rotation: 0 as Rotation }
+      })
+    ))
+  }, [])
+
+  // ── Reset all overrides ──
+  const resetAllOverrides = useCallback(() => {
+    setCells(prev => prev.map(row => row.map(cell => ({
+      rotation: cell.rotation,
+    }))))
+  }, [])
 
   // ── SVG export ──
   const downloadSVG = useCallback(() => {
@@ -486,15 +507,19 @@ export function App() {
             <input type="range" min={1} max={10} value={groutWidth} onChange={e => setGroutWidth(Number(e.target.value))} style={{ width: '100%', accentColor: '#111' }} />
           </div>
 
+          <button onClick={resetAllOverrides} style={{ width: '100%', padding: '8px 0', fontSize: 11, fontWeight: 600, background: '#f4f4f4', border: '1px solid #e0e0e0', borderRadius: 4, cursor: 'pointer', color: '#333', marginBottom: 6 }}>
+            Reset Overrides
+          </button>
           <button onClick={downloadSVG} style={{ width: '100%', padding: '8px 0', fontSize: 11, fontWeight: 600, background: '#f4f4f4', border: '1px solid #e0e0e0', borderRadius: 4, cursor: 'pointer', color: '#333', marginBottom: 10 }}>
             ↓ Export SVG
           </button>
-          <div style={{ fontSize: 10, color: '#ccc', lineHeight: 1.5 }}>Click floor tiles to rotate</div>
+          <div style={{ fontSize: 10, color: '#ccc', lineHeight: 1.5 }}>Left-click to paint · right-click to rotate<br />Middle-click to reset a single tile</div>
         </div>
       </div>
 
       {/* ── Canvas ── */}
-      <div style={{ flex: 1, overflow: 'auto', background: '#f0f0f0', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: 40 }}>
+      <div style={{ flex: 1, overflow: 'auto', background: '#f0f0f0', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: 40 }}
+        onContextMenu={e => e.preventDefault()}>
         <svg ref={svgRef} width={svgWidth} height={svgHeight}
           style={{ background: 'white', boxShadow: '0 2px 16px rgba(0,0,0,0.10)', display: 'block' }}
           xmlns="http://www.w3.org/2000/svg">
@@ -509,7 +534,11 @@ export function App() {
               return (
                 <g key={`${r}-${c}`}>
                   <rect x={c*cellSize} y={r*cellSize} width={cellSize+groutWidth} height={cellSize+groutWidth} fill={groutColor} />
-                  <g transform={`translate(${tx},${ty})`} onClick={() => handleTileClick(r, c)} style={{ cursor: 'pointer' }}>
+                  <g transform={`translate(${tx},${ty})`}
+                    onClick={() => handleTilePaint(r, c)}
+                    onContextMenu={e => { e.preventDefault(); handleTileRotate(r, c) }}
+                    onAuxClick={e => { if (e.button === 1) { e.preventDefault(); handleTileReset(r, c) } }}
+                    style={{ cursor: 'pointer' }}>
                     <g transform={`rotate(${imgRot(((cell.rotation + tmplCell.rotation) % 4) as Rotation)},${tileSize/2},${tileSize/2})`}>
                       <image href={`${import.meta.env.BASE_URL}tiles/${tile.image}`} width={tileSize} height={tileSize} />
                     </g>
