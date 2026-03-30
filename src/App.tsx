@@ -10,27 +10,40 @@ interface TileType {
   name: string
   background: string
   arc: string
-  image: string
+  image?: string          // photo (only for square tiles)
+  subW: number            // width in sub-cells at rotation 0
+  subH: number            // height in sub-cells at rotation 0
+}
+
+// Effective sub-cell size after rotation (odd rotations swap w/h)
+function tileDims(t: TileType, rot: Rotation): { w: number; h: number } {
+  return (rot === 1 || rot === 3) ? { w: t.subH, h: t.subW } : { w: t.subW, h: t.subH }
 }
 
 // Images are naturally oriented with arc at bottom-right.
-// To show rotation r, we rotate the image by ((r - 2 + 4) % 4) * 90 degrees.
 function imgRot(r: Rotation): number { return ((r - 2 + 4) % 4) * 90 }
 
-// Images are naturally oriented with arc at bottom-right (rotation 2 in display terms)
+// ─── Square tiles (2×2 sub-cells) — use product photos ─────────────────────
 const TILE_TYPES: TileType[] = [
-  { name: 'Birch / Denim',      background: '#EAE2D6', arc: '#9898A8', image: 'Kat-Roger-6x6-arc-Birch-Denim-230x230.jpg' },
-  { name: 'Birch / Dune',       background: '#EAE2D6', arc: '#DECAB0', image: 'Kat-Roger-6x6-arc-Birch-Dune-230x230.jpg' },
-  { name: 'Denim / Birch',      background: '#9898A8', arc: '#EAE2D6', image: 'Kat-Roger-6x6-arc-Denim-Birch-230x230.jpg' },
-  { name: 'Dune / Birch',       background: '#DECAB0', arc: '#EAE2D6', image: 'Kat-Roger-6x6-arc-Dune-Birch-230x230.jpg' },
-  { name: 'Basalt / Dune',      background: '#302828', arc: '#DECAB0', image: 'Kat-Roger-6x6-arc-Basalt-Dune-230x230.jpg' },
-  { name: 'Storm / Birch',      background: '#888880', arc: '#EAE2D6', image: 'Kat-Roger-6x6-arc-Storm-Birch-230x230.jpg' },
-  { name: 'Sunbeam / Denim',    background: '#C89030', arc: '#9898A8', image: 'Kat-Roger-6x6-arc-Sunbeam-Denim-230x230.jpg' },
-  { name: 'Surf / Sunbeam',     background: '#486878', arc: '#C89030', image: 'Kat-Roger-6x6-arc-Surf-Sunbeam-230x230.jpg' },
-  { name: 'Redwood / Coral',    background: '#782828', arc: '#C87858', image: 'Kat-Roger-6x6-arc-Redwood-Coral-230x230.jpg' },
-  { name: 'Redwood / Dune',     background: '#782828', arc: '#DECAB0', image: 'Kat-Roger-6x6-arc-Redwood-Dune-230x230.jpg' },
-  { name: 'Redwood / Sunbeam',  background: '#782828', arc: '#C89030', image: 'Kat-Roger-6x6-arc-Redwood-Sunbeam-2-230x230.jpg' },
-  { name: 'Redwood / Surf',     background: '#782828', arc: '#486878', image: 'Kat-Roger-6x6-arc-Redwood-Surf-230x230.jpg' },
+  { name: 'Birch / Denim',      background: '#EAE2D6', arc: '#9898A8', image: 'Kat-Roger-6x6-arc-Birch-Denim-230x230.jpg', subW: 2, subH: 2 },
+  { name: 'Birch / Dune',       background: '#EAE2D6', arc: '#DECAB0', image: 'Kat-Roger-6x6-arc-Birch-Dune-230x230.jpg', subW: 2, subH: 2 },
+  { name: 'Denim / Birch',      background: '#9898A8', arc: '#EAE2D6', image: 'Kat-Roger-6x6-arc-Denim-Birch-230x230.jpg', subW: 2, subH: 2 },
+  { name: 'Dune / Birch',       background: '#DECAB0', arc: '#EAE2D6', image: 'Kat-Roger-6x6-arc-Dune-Birch-230x230.jpg', subW: 2, subH: 2 },
+  { name: 'Basalt / Dune',      background: '#302828', arc: '#DECAB0', image: 'Kat-Roger-6x6-arc-Basalt-Dune-230x230.jpg', subW: 2, subH: 2 },
+  { name: 'Storm / Birch',      background: '#888880', arc: '#EAE2D6', image: 'Kat-Roger-6x6-arc-Storm-Birch-230x230.jpg', subW: 2, subH: 2 },
+  { name: 'Sunbeam / Denim',    background: '#C89030', arc: '#9898A8', image: 'Kat-Roger-6x6-arc-Sunbeam-Denim-230x230.jpg', subW: 2, subH: 2 },
+  { name: 'Surf / Sunbeam',     background: '#486878', arc: '#C89030', image: 'Kat-Roger-6x6-arc-Surf-Sunbeam-230x230.jpg', subW: 2, subH: 2 },
+  { name: 'Redwood / Coral',    background: '#782828', arc: '#C87858', image: 'Kat-Roger-6x6-arc-Redwood-Coral-230x230.jpg', subW: 2, subH: 2 },
+  { name: 'Redwood / Dune',     background: '#782828', arc: '#DECAB0', image: 'Kat-Roger-6x6-arc-Redwood-Dune-230x230.jpg', subW: 2, subH: 2 },
+  { name: 'Redwood / Sunbeam',  background: '#782828', arc: '#C89030', image: 'Kat-Roger-6x6-arc-Redwood-Sunbeam-2-230x230.jpg', subW: 2, subH: 2 },
+  { name: 'Redwood / Surf',     background: '#782828', arc: '#486878', image: 'Kat-Roger-6x6-arc-Redwood-Surf-230x230.jpg', subW: 2, subH: 2 },
+  // ─── Rectangle tiles (1×2 sub-cells) — SVG arc rendering ─────────────────
+  { name: 'Rect Birch / Denim', background: '#EAE2D6', arc: '#9898A8', subW: 1, subH: 2 },
+  { name: 'Rect Denim / Birch', background: '#9898A8', arc: '#EAE2D6', subW: 1, subH: 2 },
+  { name: 'Rect Basalt / Dune', background: '#302828', arc: '#DECAB0', subW: 1, subH: 2 },
+  { name: 'Rect Surf / Sunbeam',background: '#486878', arc: '#C89030', subW: 1, subH: 2 },
+  { name: 'Rect Redwood / Coral',background:'#782828', arc: '#C87858', subW: 1, subH: 2 },
+  { name: 'Rect Storm / Birch', background: '#888880', arc: '#EAE2D6', subW: 1, subH: 2 },
 ]
 
 // ─── Cell ────────────────────────────────────────────────────────────────────
@@ -712,16 +725,35 @@ export function App() {
               const tmplCell = template[r % templateRows][c % templateCols]
               const typeIdx = cell.typeOverride ?? tmplCell.typeIndex
               const tile = TILE_TYPES[typeIdx]
+              const combinedRot = ((cell.rotation + tmplCell.rotation) % 4) as Rotation
+              // Tile dimensions (relative to cell size)
+              const dims = tileDims(tile, combinedRot)
+              const tw = tileSize * dims.w / 2
+              const th = tileSize * dims.h / 2
+              // Center the tile within the cell
+              const ox = (tileSize - tw) / 2
+              const oy = (tileSize - th) / 2
               return (
                 <g key={`${r}-${c}`}>
                   <rect x={c*cellSize} y={r*cellSize} width={cellSize+groutWidth} height={cellSize+groutWidth} fill={groutColor} />
-                  <g transform={`translate(${tx},${ty})`}
+                  <g transform={`translate(${tx + ox},${ty + oy})`}
                     onClick={e => e.shiftKey ? handleTileReset(r, c) : handleTilePaint(r, c)}
                     onContextMenu={e => { e.preventDefault(); handleTileRotate(r, c) }}
                     style={{ cursor: 'pointer' }}>
-                    <g transform={`rotate(${imgRot(((cell.rotation + tmplCell.rotation) % 4) as Rotation)},${tileSize/2},${tileSize/2})`}>
-                      <image href={`${import.meta.env.BASE_URL}tiles/${tile.image}`} width={tileSize} height={tileSize} />
-                    </g>
+                    {tile.image ? (
+                      /* Square tile with product photo */
+                      <g transform={`rotate(${imgRot(combinedRot)},${tw/2},${th/2})`}>
+                        <image href={`${import.meta.env.BASE_URL}tiles/${tile.image}`} width={tw} height={th} />
+                      </g>
+                    ) : (
+                      /* Rectangle tile with SVG arc */
+                      <>
+                        <rect width={tw} height={th} fill={tile.background} />
+                        <g transform={`rotate(${combinedRot * 90},${tw/2},${th/2})`}>
+                          <path d={`M 0,0 L ${tw},0 A ${tw},${th} 0 0,1 0,${th} Z`} fill={tile.arc} />
+                        </g>
+                      </>
+                    )}
                   </g>
                 </g>
               )
