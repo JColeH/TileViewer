@@ -513,7 +513,7 @@ export function App() {
           <button onClick={downloadSVG} style={{ width: '100%', padding: '8px 0', fontSize: 11, fontWeight: 600, background: '#f4f4f4', border: '1px solid #e0e0e0', borderRadius: 4, cursor: 'pointer', color: '#333', marginBottom: 10 }}>
             ↓ Export SVG
           </button>
-          <div style={{ fontSize: 10, color: '#ccc', lineHeight: 1.5 }}>Left-click to paint · right-click to rotate<br />Middle-click to reset a single tile</div>
+          <div style={{ fontSize: 10, color: '#ccc', lineHeight: 1.5 }}>Left-click to paint · right-click to rotate<br />Shift-click to reset a single tile</div>
         </div>
       </div>
 
@@ -535,9 +535,8 @@ export function App() {
                 <g key={`${r}-${c}`}>
                   <rect x={c*cellSize} y={r*cellSize} width={cellSize+groutWidth} height={cellSize+groutWidth} fill={groutColor} />
                   <g transform={`translate(${tx},${ty})`}
-                    onClick={() => handleTilePaint(r, c)}
+                    onClick={e => e.shiftKey ? handleTileReset(r, c) : handleTilePaint(r, c)}
                     onContextMenu={e => { e.preventDefault(); handleTileRotate(r, c) }}
-                    onAuxClick={e => { if (e.button === 1) { e.preventDefault(); handleTileReset(r, c) } }}
                     style={{ cursor: 'pointer' }}>
                     <g transform={`rotate(${imgRot(((cell.rotation + tmplCell.rotation) % 4) as Rotation)},${tileSize/2},${tileSize/2})`}>
                       <image href={`${import.meta.env.BASE_URL}tiles/${tile.image}`} width={tileSize} height={tileSize} />
