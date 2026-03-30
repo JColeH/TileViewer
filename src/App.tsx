@@ -216,12 +216,19 @@ function TileTypePicker({ size, selected, onSelect }: {
             background: selected === i ? '#f8f8f8' : 'white',
             boxSizing: 'border-box',
           }}>
-            {/* Single tile preview at natural orientation */}
+            {/* Single tile preview */}
             <div style={{
               width: size, height: size, flexShrink: 0, borderRadius: 2, overflow: 'hidden',
               border: '1px solid rgba(0,0,0,0.08)',
             }}>
-              <img src={`${import.meta.env.BASE_URL}tiles/${t.image}`} width={size} height={size} style={{ display: 'block' }} />
+              {t.image ? (
+                <img src={`${import.meta.env.BASE_URL}tiles/${t.image}`} width={size} height={size} style={{ display: 'block' }} />
+              ) : (
+                <svg width={size} height={size}>
+                  <rect width={size} height={size} fill={t.background} />
+                  <path d={`M 0,0 L ${size},0 A ${size},${size} 0 0,1 0,${size} Z`} fill={t.arc} />
+                </svg>
+              )}
             </div>
             <span style={{ fontSize: 10, color: '#444', lineHeight: 1.3 }}>{t.name}</span>
           </div>
