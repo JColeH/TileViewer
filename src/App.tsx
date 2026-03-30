@@ -32,10 +32,11 @@ const TILE_TYPES: TileType[] = [
   { name: 'Redwood / Surf',     background: '#782828', arc: '#486878', image: 'Kat-Roger-6x6-arc-Redwood-Surf-230x230.jpg' },
 ]
 
-// ─── Cell (rotation only — type comes from template) ────────────────────────
+// ─── Cell ────────────────────────────────────────────────────────────────────
 
 interface Cell {
   rotation: Rotation
+  typeOverride?: number  // if set, overrides the template type for this cell
 }
 
 // ─── Patterns ───────────────────────────────────────────────────────────────
@@ -245,7 +246,10 @@ function encodeState(
   grout: string, tileSize: number, groutWidth: number, cells: Cell[][],
 ) {
   const t = tmpl.flatMap(row => row.map(c => c.typeIndex.toString(16) + c.rotation)).join('')
-  const r = cells.flatMap(row => row.map(c => c.rotation)).join('')
+  // Each cell: rotation (0-3) + override type as hex or '-' for none
+  const r = cells.flatMap(row => row.map(c =>
+    c.rotation.toString() + (c.typeOverride != null ? c.typeOverride.toString(16) : '-')
+  )).join('')
   const params = new URLSearchParams()
   params.set('l', layoutKey)
   params.set('ts', `${tRows}x${tCols}`)
@@ -281,9 +285,13 @@ function decodeState(hash: string) {
   const layout = LAYOUTS[layoutKey] ?? LAYOUTS.staircase
   const rStr = params.get('r') ?? ''
   const cells: Cell[][] = Array.from({ length: layout.rows }, (_, r) =>
-    Array.from({ length: layout.cols }, (_, c) => ({
-      rotation: (Number(rStr[r * layout.cols + c] ?? '0') % 4) as Rotation,
-    }))
+    Array.from({ length: layout.cols }, (_, c) => {
+      const i = (r * layout.cols + c) * 2
+      const rot = (Number(rStr[i] ?? '0') % 4) as Rotation
+      const ovChar = rStr[i + 1]
+      const typeOverride = ovChar && ovChar !== '-' ? parseInt(ovChar, 16) : undefined
+      return { rotation: rot, typeOverride }
+    })
   )
   const preset = TEMPLATE_PRESETS.find(p => p.rows === tRows && p.cols === tCols)?.label ?? ''
   return { layoutKey, tRows, tCols, tmpl, grout, tileSize, groutWidth, cells, preset }
@@ -367,15 +375,25 @@ export function App() {
     }))))
   }, [])
 
-  // ── Tile click — rotate ──
+  // ── Tile click: paint with selected type, or rotate if already that type ──
   const handleTileClick = useCallback((r: number, c: number) => {
     setCells(prev => prev.map((row, ri) =>
       row.map((cell, ci) => {
         if (ri !== r || ci !== c) return cell
-        return { rotation: ((cell.rotation + 1) % 4) as Rotation }
+        const tmplType = template[r % templateRows][c % templateCols].typeIndex
+        const effectiveType = cell.typeOverride ?? tmplType
+        if (effectiveType === selectedType) {
+          // Already the selected type — rotate
+          return { ...cell, rotation: ((cell.rotation + 1) % 4) as Rotation }
+        }
+        // Paint with selected type (override if differs from template, clear if matches)
+        return {
+          ...cell,
+          typeOverride: selectedType === tmplType ? undefined : selectedType,
+        }
       })
     ))
-  }, [])
+  }, [selectedType, template, templateRows, templateCols])
 
   // ── SVG export ──
   const downloadSVG = useCallback(() => {
@@ -486,7 +504,8 @@ export function App() {
               const tx = c * cellSize + groutWidth
               const ty = r * cellSize + groutWidth
               const tmplCell = template[r % templateRows][c % templateCols]
-              const tile = TILE_TYPES[tmplCell.typeIndex]
+              const typeIdx = cell.typeOverride ?? tmplCell.typeIndex
+              const tile = TILE_TYPES[typeIdx]
               return (
                 <g key={`${r}-${c}`}>
                   <rect x={c*cellSize} y={r*cellSize} width={cellSize+groutWidth} height={cellSize+groutWidth} fill={groutColor} />
