@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { GROUT_COLORS } from './colors'
+import { DESIGN_LIBRARY, type Design } from './library'
 
 type Rotation = 0 | 1 | 2 | 3
 
@@ -237,6 +238,88 @@ function GroutPicker({ selected, onSelect }: {
   )
 }
 
+// ─── Design Library ─────────────────────────────────────────────────────────
+
+function DesignLibrary({ onLoad }: { onLoad: (hash: string) => void }) {
+  const [search, setSearch] = useState('')
+  const [expanded, setExpanded] = useState(false)
+
+  const filtered = search.trim()
+    ? DESIGN_LIBRARY.filter(d => {
+        const q = search.toLowerCase()
+        return d.name.toLowerCase().includes(q) ||
+               d.description.toLowerCase().includes(q) ||
+               d.keywords.some(k => k.includes(q))
+      })
+    : DESIGN_LIBRARY
+
+  const stars = (n: number) => {
+    const full = Math.floor(n / 2)
+    const half = n % 2 >= 1
+    return '★'.repeat(full) + (half ? '½' : '') + '☆'.repeat(5 - full - (half ? 1 : 0))
+  }
+
+  return (
+    <div style={{ marginBottom: 18 }}>
+      <div
+        onClick={() => setExpanded(!expanded)}
+        style={{
+          fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.7px',
+          color: '#666', marginBottom: 7, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
+        }}
+      >
+        <span style={{ fontSize: 8 }}>{expanded ? '▼' : '▶'}</span>
+        Design Library ({DESIGN_LIBRARY.length})
+      </div>
+      {expanded && (
+        <>
+          <input
+            type="text"
+            placeholder="Search by keyword..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{
+              width: '100%', padding: '5px 8px', fontSize: 11, border: '1px solid #e0e0e0',
+              borderRadius: 4, marginBottom: 8, boxSizing: 'border-box', outline: 'none',
+            }}
+          />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {filtered.map((d, i) => (
+              <div
+                key={i}
+                onClick={() => onLoad(d.hash)}
+                style={{
+                  padding: '8px 10px', borderRadius: 5, cursor: 'pointer',
+                  border: '1px solid #e8e8e8', background: 'white',
+                  transition: 'border-color 0.15s',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.borderColor = '#111')}
+                onMouseLeave={e => (e.currentTarget.style.borderColor = '#e8e8e8')}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: '#222' }}>{d.name}</span>
+                  <span style={{ fontSize: 9, color: '#c89030', letterSpacing: -1 }}>{stars(d.rating)}</span>
+                </div>
+                <div style={{ fontSize: 9, color: '#888', lineHeight: 1.4, marginBottom: 4 }}>{d.description}</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                  {d.keywords.slice(0, 5).map(k => (
+                    <span key={k} style={{
+                      fontSize: 8, padding: '1px 5px', background: '#f0f0f0', borderRadius: 3, color: '#666',
+                    }}>{k}</span>
+                  ))}
+                </div>
+              </div>
+            ))}
+            {filtered.length === 0 && (
+              <div style={{ fontSize: 10, color: '#bbb', textAlign: 'center', padding: 8 }}>No matches</div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 // ─── URL state encoding / decoding ──────────────────────────────────────────
 
 // Template: each cell encoded as hex typeIndex (0-b) + rotation (0-3), row-major
@@ -326,6 +409,21 @@ export function App() {
     const hash = encodeState(layoutKey, templateRows, templateCols, template, groutColor, tileSize, groutWidth, cells)
     window.history.replaceState(null, '', '#' + hash)
   }, [layoutKey, templateRows, templateCols, template, groutColor, tileSize, groutWidth, cells])
+
+  // ── Load a design from library ──
+  const loadDesign = useCallback((hash: string) => {
+    const state = decodeState(hash)
+    if (!state) return
+    setLayoutKey(state.layoutKey)
+    setGroutColor(state.grout)
+    setTileSize(state.tileSize)
+    setGroutWidth(state.groutWidth)
+    setTemplateRows(state.tRows)
+    setTemplateCols(state.tCols)
+    setTemplate(state.tmpl)
+    setTemplatePreset(state.preset)
+    setCells(state.cells)
+  }, [])
 
   // ── Layout switch ──
   const switchLayout = useCallback((key: 'staircase' | 'grid') => {
@@ -507,6 +605,8 @@ export function App() {
             <input type="range" min={1} max={10} value={groutWidth} onChange={e => setGroutWidth(Number(e.target.value))} style={{ width: '100%', accentColor: '#111' }} />
           </div>
 
+          <DesignLibrary onLoad={loadDesign} />
+
           <button onClick={resetAllOverrides} style={{ width: '100%', padding: '8px 0', fontSize: 11, fontWeight: 600, background: '#f4f4f4', border: '1px solid #e0e0e0', borderRadius: 4, cursor: 'pointer', color: '#333', marginBottom: 6 }}>
             Reset Overrides
           </button>
@@ -520,7 +620,7 @@ export function App() {
       {/* ── Canvas ── */}
       <div style={{ flex: 1, overflow: 'auto', background: '#f0f0f0', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: 40 }}
         onContextMenu={e => e.preventDefault()}>
-        <svg ref={svgRef} width={svgWidth} height={svgHeight}
+        <svg id="canvas" ref={svgRef} width={svgWidth} height={svgHeight}
           style={{ background: 'white', boxShadow: '0 2px 16px rgba(0,0,0,0.10)', display: 'block' }}
           xmlns="http://www.w3.org/2000/svg">
           {cells.slice(0, rows).flatMap((row, r) =>
