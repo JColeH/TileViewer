@@ -372,11 +372,48 @@ export function App() {
   const [groutColor, setGroutColor] = useState(init?.grout ?? '#C0BDB8')
   const [tileSize, setTileSize] = useState(init?.tileSize ?? 56)
   const [groutWidth, setGroutWidth] = useState(init?.groutWidth ?? 3)
-  const [grid, setGrid] = useState<Grid>(() => {
+  const [grid, setGridRaw] = useState<Grid>(() => {
     if (init?.grid) return init.grid
     const l = LAYOUTS.staircase
     return fillWithSquares(l.rows, l.cols, 0, 2)
   })
+
+  // ── Undo/Redo stack ──
+  const undoStack = useRef<Grid[]>([])
+  const redoStack = useRef<Grid[]>([])
+  const setGrid = useCallback((updater: Grid | ((prev: Grid) => Grid)) => {
+    setGridRaw(prev => {
+      undoStack.current.push(prev)
+      if (undoStack.current.length > 50) undoStack.current.shift()
+      redoStack.current = []
+      return typeof updater === 'function' ? updater(prev) : updater
+    })
+  }, [])
+  const undo = useCallback(() => {
+    if (undoStack.current.length === 0) return
+    setGridRaw(prev => {
+      redoStack.current.push(prev)
+      return undoStack.current.pop()!
+    })
+  }, [])
+  const redo = useCallback(() => {
+    if (redoStack.current.length === 0) return
+    setGridRaw(prev => {
+      undoStack.current.push(prev)
+      return redoStack.current.pop()!
+    })
+  }, [])
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo() }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && e.shiftKey) { e.preventDefault(); redo() }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'y') { e.preventDefault(); redo() }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [undo, redo])
 
   const svgRef = useRef<SVGSVGElement>(null)
   const layout = LAYOUTS[layoutKey]
@@ -672,6 +709,11 @@ export function App() {
           <SavedDesigns onLoad={loadDesign} currentHash={currentHash} />
 
           <DesignLibrary onLoad={loadDesign} />
+
+          <div style={{ display: 'flex', gap: 4, marginBottom: 6 }}>
+            <button onClick={undo} style={{ ...btnBase, flex: 1, padding: '6px 0' }}>↩ Undo</button>
+            <button onClick={redo} style={{ ...btnBase, flex: 1, padding: '6px 0' }}>↪ Redo</button>
+          </div>
 
           <button onClick={downloadSVG} style={{ width: '100%', padding: '8px 0', fontSize: 11, fontWeight: 600, background: '#f4f4f4', border: '1px solid #e0e0e0', borderRadius: 4, cursor: 'pointer', color: '#333', marginBottom: 10 }}>
             ↓ Export SVG
