@@ -138,16 +138,16 @@ function fillWithSquares(rows: number, cols: number, typeIndex: number = 0, rota
   return grid
 }
 
-// ─── Staircase layout (doubled: 18×34) ──────────────────────────────────────
-const STAIRCASE_COLS = 18    // 9 tiles × 2
-const STAIRCASE_ROWS = 34    // 17 tiles × 2
-const STAIRCASE_UPPER_OFFSET = 8  // 4 tiles × 2
-const STAIRCASE_UPPER_ROWS = 12   // 6 tiles × 2
+// ─── Staircase layout (rotated 90° CW: 34×18) ──────────────────────────────
+const STAIRCASE_COLS = 34
+const STAIRCASE_ROWS = 18
+const STAIRCASE_NOTCH_ROWS = 8   // rows where the notch applies
+const STAIRCASE_NOTCH_START = 22  // cols >= this are hidden in notch rows
 
 function staircaseMask(): boolean[][] {
   return Array.from({ length: STAIRCASE_ROWS }, (_, r) =>
     Array.from({ length: STAIRCASE_COLS }, (_, c) =>
-      r < STAIRCASE_UPPER_ROWS ? c >= STAIRCASE_UPPER_OFFSET : true
+      r < STAIRCASE_NOTCH_ROWS ? c < STAIRCASE_NOTCH_START : true
     )
   )
 }
