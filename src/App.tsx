@@ -138,11 +138,33 @@ function fillWithSquares(rows: number, cols: number, typeIndex: number = 0, rota
   return grid
 }
 
-// ─── Staircase layout (rotated 90° CW: 34×18) ──────────────────────────────
-const STAIRCASE_COLS = 34
-const STAIRCASE_ROWS = 18
-const STAIRCASE_NOTCH_ROWS = 8   // rows where the notch applies
-const STAIRCASE_NOTCH_START = 22  // cols >= this are hidden in notch rows
+// ─── Exact room geometry (all in inches) ────────────────────────────────────
+// Overall floor: 8′-5″ × 4′-7″  (from architect drawing)
+// L-shaped: upper-right notch carved out for radiator cover area
+const ROOM = {
+  w: 101,        // 8′-5″ total width
+  h: 55,         // 4′-7″ total height
+  // L-shape notch (upper-right corner, straight cut — no step)
+  notchX: 58.625, // 4′-10 5/8″ from left
+  notchH: 22,     // 1′-10″ height from top
+  // Shelves obstacle (left side)
+  shelfW:  10.625, // width from left wall
+  shelfY1:  6,     // starts 6″ from top (TODO: confirm exact value)
+  shelfY2: 50,     // ends 5″ from bottom (55 − 5)
+  // Radiator obstacle (right side)
+  radX:   97,      // 4″ wide from right wall (101 − 4)
+  radY:   22,      // starts at notch bottom level
+  radH:   33,      // 2′-9″ tall
+}
+
+// Grid: 1 cell = 3 inches (half a 6″ tile).
+// 36 cols × 20 rows gives slight overfill beyond the 101″ × 55″ room.
+// The exact room boundary is enforced by an SVG clipPath.
+const STAIRCASE_COLS = 36
+const STAIRCASE_ROWS = 20
+// Keep mask for legacy click-prevention in the notch area
+const STAIRCASE_NOTCH_ROWS = 8   // rows where the notch applies (≈22″ / 3″)
+const STAIRCASE_NOTCH_START = 22  // cols >= this are hidden in notch rows (≈64.6″ / 3″)
 
 function staircaseMask(): boolean[][] {
   return Array.from({ length: STAIRCASE_ROWS }, (_, r) =>
@@ -155,8 +177,7 @@ const STAIRCASE_MASK = staircaseMask()
 
 interface Layout { label: string; cols: number; rows: number; mask: boolean[][] | null }
 const LAYOUTS: Record<string, Layout> = {
-  staircase: { label: 'Staircase Room', cols: STAIRCASE_COLS, rows: STAIRCASE_ROWS, mask: STAIRCASE_MASK },
-  grid:      { label: 'Free Grid',      cols: 16,             rows: 16,             mask: null },
+  staircase: { label: 'Entry Room', cols: STAIRCASE_COLS, rows: STAIRCASE_ROWS, mask: STAIRCASE_MASK },
 }
 
 // ─── Rotation patterns (for arc tiles, using tile-level coords) ─────────────
@@ -310,9 +331,14 @@ function DesignLibrary({ onLoad }: { onLoad: (hash: string) => void }) {
   )
 }
 
-// ─── URL encoding (v3 — grid-based) ─────────────────────────────────────────
-function encodeGrid(layoutKey: string, grout: string, tileSize: number, groutWidth: number, grid: Grid): string {
-  // Encode only anchor cells: row,col,typeIndex,rotation
+// ─── URL encoding (v5 — adds showCrop + showFurniture flags) ────────────────
+// sz = pxPerIn (zoom, pixels per inch)
+// gw = groutInches (physical grout width in inches)
+// g  = grout color hex (no #)
+// cr = showCrop (1/0, default 1)
+// fu = showFurniture (1/0, default 1)
+// v3 legacy: sz was tileSize in pixels (>15 = old format), gw was pixels
+function encodeGrid(layoutKey: string, grout: string, pxPerIn: number, groutInches: number, grid: Grid, showCrop: boolean, showFurniture: boolean): string {
   const anchors: string[] = []
   for (let r = 0; r < grid.length; r++) {
     for (let c = 0; c < (grid[0]?.length ?? 0); c++) {
@@ -323,22 +349,30 @@ function encodeGrid(layoutKey: string, grout: string, tileSize: number, groutWid
     }
   }
   const params = new URLSearchParams()
-  params.set('v', '3')
+  params.set('v', '5')
   params.set('l', layoutKey)
   params.set('g', grout.replace('#', ''))
-  params.set('sz', String(tileSize))
-  params.set('gw', String(groutWidth))
+  params.set('sz', pxPerIn.toFixed(2))
+  params.set('gw', groutInches.toFixed(4))
+  if (!showCrop) params.set('cr', '0')
+  if (!showFurniture) params.set('fu', '0')
   params.set('a', anchors.join(';'))
   return params.toString()
 }
 
-function decodeGrid(hash: string): { layoutKey: 'staircase' | 'grid'; grout: string; tileSize: number; groutWidth: number; grid: Grid } | null {
+function decodeGrid(hash: string): { layoutKey: 'staircase'; grout: string; pxPerIn: number; groutInches: number; showCrop: boolean; showFurniture: boolean; grid: Grid } | null {
   const params = new URLSearchParams(hash.replace(/^#/, ''))
   if (!params.has('l')) return null
-  const layoutKey = params.get('l') as 'staircase' | 'grid'
+  const layoutKey = params.get('l') as 'staircase'
   const grout = '#' + (params.get('g') ?? 'C0BDB8')
-  const tileSize = Number(params.get('sz') ?? 56)
-  const groutWidth = Number(params.get('gw') ?? 3)
+  const szRaw = Number(params.get('sz') ?? 10)
+  const gwRaw = Number(params.get('gw') ?? 0.1875)
+  // Migrate v3: sz was pixel tileSize (always > 15), gw was pixel groutPx
+  const isLegacy = szRaw > 15
+  const pxPerIn    = isLegacy ? szRaw / 6           : szRaw
+  const groutInches = isLegacy ? gwRaw / (szRaw / 6) : gwRaw
+  const showCrop = params.get('cr') !== '0'
+  const showFurniture = params.get('fu') !== '0'
   const layout = LAYOUTS[layoutKey] ?? LAYOUTS.staircase
   const grid = makeEmptyGrid(layout.rows, layout.cols)
   const aStr = params.get('a') ?? ''
@@ -359,7 +393,40 @@ function decodeGrid(hash: string): { layoutKey: 'staircase' | 'grid'; grout: str
       }
     }
   }
-  return { layoutKey, grout, tileSize, groutWidth, grid }
+  return { layoutKey, grout, pxPerIn, groutInches, showCrop, showFurniture, grid }
+}
+
+// Parse a fraction string like "3/16", "1/8", "0.125", or "3" (whole number inches).
+// Returns inches as a number, or null if unparseable.
+function parseFraction(s: string): number | null {
+  const str = s.trim()
+  // e.g. "3/16"
+  const fracMatch = str.match(/^(\d+)\s*\/\s*(\d+)$/)
+  if (fracMatch) {
+    const n = Number(fracMatch[1]), d = Number(fracMatch[2])
+    if (d === 0) return null
+    return n / d
+  }
+  // plain decimal or integer
+  const n = Number(str)
+  return isNaN(n) ? null : n
+}
+
+// Display inches as the nearest simple fraction (up to 32nds)
+function fmtGrout(inches: number): string {
+  // Build fraction table up to 32nds
+  const fracs: [number, string][] = []
+  for (let d of [2, 4, 8, 16, 32]) {
+    for (let n = 1; n < d; n++) {
+      // Reduce: skip if not in lowest terms
+      const gcd = (a: number, b: number): number => b === 0 ? a : gcd(b, a % b)
+      if (gcd(n, d) !== 1) continue
+      fracs.push([n / d, `${n}/${d}"`])
+    }
+  }
+  fracs.sort((a, b) => a[0] - b[0])
+  const nearest = fracs.reduce((a, b) => Math.abs(b[0] - inches) < Math.abs(a[0] - inches) ? b : a)
+  return nearest[1]
 }
 
 // ─── App ────────────────────────────────────────────────────────────────────
@@ -367,11 +434,13 @@ function decodeGrid(hash: string): { layoutKey: 'staircase' | 'grid'; grout: str
 export function App() {
   const init = decodeGrid(window.location.hash)
 
-  const [layoutKey, setLayoutKey] = useState<'staircase' | 'grid'>(init?.layoutKey ?? 'staircase')
+  const layoutKey: 'staircase' = 'staircase'
+  const [showCrop, setShowCrop] = useState(init?.showCrop ?? true)
+  const [showFurniture, setShowFurniture] = useState(init?.showFurniture ?? true)
   const [selectedType, setSelectedType] = useState(0)
   const [groutColor, setGroutColor] = useState(init?.grout ?? '#C0BDB8')
-  const [tileSize, setTileSize] = useState(init?.tileSize ?? 56)
-  const [groutWidth, setGroutWidth] = useState(init?.groutWidth ?? 3)
+  const [pxPerIn, setPxPerIn] = useState(init?.pxPerIn ?? 10)
+  const [groutInches, setGroutInches] = useState(init?.groutInches ?? 0.1875)
   const [grid, setGridRaw] = useState<Grid>(() => {
     if (init?.grid) return init.grid
     const l = LAYOUTS.staircase
@@ -404,38 +473,23 @@ export function App() {
     })
   }, [])
 
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo() }
-      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && e.shiftKey) { e.preventDefault(); redo() }
-      if ((e.metaKey || e.ctrlKey) && e.key === 'y') { e.preventDefault(); redo() }
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [undo, redo])
-
   const svgRef = useRef<SVGSVGElement>(null)
   const layout = LAYOUTS[layoutKey]
   const { cols, rows, mask } = layout
 
   // ── URL sync ──
-  const currentHash = encodeGrid(layoutKey, groutColor, tileSize, groutWidth, grid)
+  const currentHash = encodeGrid(layoutKey, groutColor, pxPerIn, groutInches, grid, showCrop, showFurniture)
   useEffect(() => { window.history.replaceState(null, '', '#' + currentHash) }, [currentHash])
 
   // ── Load design ──
   const loadDesign = useCallback((hash: string) => {
     const s = decodeGrid(hash)
     if (!s) return
-    setLayoutKey(s.layoutKey); setGroutColor(s.grout); setTileSize(s.tileSize); setGroutWidth(s.groutWidth); setGrid(s.grid)
+    setGroutColor(s.grout); setPxPerIn(s.pxPerIn); setGroutInches(s.groutInches)
+    setShowCrop(s.showCrop); setShowFurniture(s.showFurniture); setGrid(s.grid)
   }, [])
 
-  // ── Layout switch ──
-  const switchLayout = useCallback((key: 'staircase' | 'grid') => {
-    const l = LAYOUTS[key]
-    setGrid(fillWithSquares(l.rows, l.cols, 0, 2))
-    setLayoutKey(key)
-  }, [])
+
 
   // ── Apply rotation pattern to all 2×2 arc tiles ──
   const applyPattern = useCallback((fn: PatternFn) => {
@@ -498,13 +552,37 @@ export function App() {
     URL.revokeObjectURL(url)
   }, [layoutKey])
 
+  // ── Measure tool ──
+  // Uses refs for point state to avoid stale-closure issues in SVG handlers.
+  // A separate full-canvas overlay rect captures all pointer events when active.
+  const [measuring, setMeasuring] = useState(false)
+  const measureARef = useRef<{ x: number; y: number } | null>(null)
+  const [measureLine, setMeasureLine] = useState<{ a: {x:number;y:number}; b: {x:number;y:number} } | null>(null)
+  const [measureLive, setMeasureLive] = useState<{ a: {x:number;y:number}; b: {x:number;y:number} } | null>(null)
+
   // ── Stamp tool ──
   const [selection, setSelection] = useState<{ r1: number; c1: number; r2: number; c2: number } | null>(null)
   const [dragStart, setDragStart] = useState<{ r: number; c: number } | null>(null)
 
-  const halfPitch = (tileSize + groutWidth) / 2
-  const svgWidth = cols * halfPitch + groutWidth
-  const svgHeight = rows * halfPitch + groutWidth
+  // ── Paint dragging ──
+  const isPainting = useRef(false)
+  const lastPaintCell = useRef<{ r: number; c: number } | null>(null)
+  const paintedCells = useRef<Set<string>>(new Set())
+  const paintStartGrid = useRef<Grid | null>(null)
+
+  // ── Copy/Paste ──
+  const [copiedStamp, setCopiedStamp] = useState<{ cells: (GridCell | null)[][]; w: number; h: number; originR: number; originC: number } | null>(null)
+  const [pasteMode, setPasteMode] = useState(false)
+  const [pastePos, setPastePos] = useState<{ r: number; c: number } | null>(null)
+
+  // ── Inch-primary rendering math ──
+  // pxPerIn is the zoom level (pixels per physical inch). groutInches is the physical grout width.
+  const groutPx   = groutInches * pxPerIn               // grout gap in pixels
+  const tilePx    = 6 * pxPerIn                         // 6″ tile in pixels
+  const halfPitch = (tilePx + groutPx) / 2              // cell pitch in pixels (1 cell = 3″)
+  const isRoom = layoutKey === 'staircase'
+  const svgWidth  = isRoom ? ROOM.w * pxPerIn : cols * halfPitch + groutPx
+  const svgHeight = isRoom ? ROOM.h * pxPerIn : rows * halfPitch + groutPx
 
   const cellFromEvent = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
     const rect = svgRef.current!.getBoundingClientRect()
@@ -514,20 +592,63 @@ export function App() {
     }
   }, [halfPitch, rows, cols])
 
-  const onMouseDown = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
-    if (!e.shiftKey || e.button !== 0) return
-    e.preventDefault()
-    const { r, c } = cellFromEvent(e)
-    setDragStart({ r, c }); setSelection({ r1: r, c1: c, r2: r, c2: c })
-  }, [cellFromEvent])
+const onMouseDown = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+    if (e.button !== 0) return
+    if (e.shiftKey) {
+      e.preventDefault()
+      const { r, c } = cellFromEvent(e)
+      setDragStart({ r, c }); setSelection({ r1: r, c1: c, r2: r, c2: c })
+      return
+    }
+    if (!pasteMode) {
+      isPainting.current = true
+      lastPaintCell.current = null
+      paintedCells.current.clear()
+      setGridRaw(current => { paintStartGrid.current = current; return current })
+    }
+  }, [cellFromEvent, pasteMode])
 
   const onMouseMove = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
-    if (!dragStart) return
-    const { r, c } = cellFromEvent(e)
-    setSelection({ r1: Math.min(dragStart.r, r), c1: Math.min(dragStart.c, c), r2: Math.max(dragStart.r, r), c2: Math.max(dragStart.c, c) })
-  }, [dragStart, cellFromEvent])
+    if (dragStart) {
+      const { r, c } = cellFromEvent(e)
+      setSelection({ r1: Math.min(dragStart.r, r), c1: Math.min(dragStart.c, c), r2: Math.max(dragStart.r, r), c2: Math.max(dragStart.c, c) })
+      return
+    }
+    if (isPainting.current) {
+      const { r, c } = cellFromEvent(e)
+      if (lastPaintCell.current?.r === r && lastPaintCell.current?.c === c) return
+      lastPaintCell.current = { r, c }
+      const tile = TILE_TYPES[selectedType]
+      let blocked = false
+      for (let dr = 0; dr < tile.h && !blocked; dr++)
+        for (let dc = 0; dc < tile.w && !blocked; dc++)
+          if (paintedCells.current.has(`${r + dr},${c + dc}`)) blocked = true
+      if (!blocked) {
+        for (let dr = 0; dr < tile.h; dr++)
+          for (let dc = 0; dc < tile.w; dc++)
+            paintedCells.current.add(`${r + dr},${c + dc}`)
+        setGridRaw(prev => placeTile(prev, r, c, selectedType, 2))
+      }
+      return
+    }
+    if (pasteMode) {
+      const { r, c } = cellFromEvent(e)
+      setPastePos({ r, c })
+    }
+  }, [dragStart, cellFromEvent, selectedType, pasteMode])
 
-  const onMouseUp = useCallback(() => { setDragStart(null) }, [])
+  const onMouseUp = useCallback(() => {
+    setDragStart(null)
+    if (isPainting.current && paintStartGrid.current) {
+      undoStack.current.push(paintStartGrid.current)
+      if (undoStack.current.length > 50) undoStack.current.shift()
+      redoStack.current = []
+      paintStartGrid.current = null
+    }
+    isPainting.current = false
+    lastPaintCell.current = null
+    paintedCells.current.clear()
+  }, [])
 
   // Capture stamp from selection
   const captureStamp = useCallback(() => {
@@ -541,6 +662,29 @@ export function App() {
     }
     return stamp
   }, [selection, grid])
+
+  // Keyboard shortcuts (placed after captureStamp, selection, copiedStamp are defined)
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo() }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && e.shiftKey) { e.preventDefault(); redo() }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'y') { e.preventDefault(); redo() }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'c') {
+        e.preventDefault()
+        if (selection) {
+          const stamp = captureStamp()
+          if (stamp) setCopiedStamp({ cells: stamp, w: selection.c2 - selection.c1 + 1, h: selection.r2 - selection.r1 + 1, originR: selection.r1, originC: selection.c1 })
+        }
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'v') {
+        e.preventDefault()
+        if (copiedStamp) { setPasteMode(true); setPastePos(null) }
+      }
+      if (e.key === 'Escape') { setPasteMode(false); setPastePos(null); setMeasuring(false); measureARef.current = null; setMeasureLine(null); setMeasureLive(null) }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [undo, redo, selection, captureStamp, copiedStamp])
 
   const repeatSelection = useCallback((dir: 'right' | 'left' | 'down' | 'up') => {
     const stamp = captureStamp()
@@ -619,6 +763,39 @@ export function App() {
     })
   }, [captureStamp, selection, rows, cols, mask])
 
+  const pasteStamp = useCallback((r: number, c: number) => {
+    if (!copiedStamp) return
+    const { cells, w, h, originR, originC } = copiedStamp
+    setGrid(prev => {
+      const next = prev.map(row => [...row])
+      for (let dr = 0; dr < h; dr++) {
+        for (let dc = 0; dc < w; dc++) {
+          const tr = r + dr, tc = c + dc
+          if (tr < 0 || tr >= rows || tc < 0 || tc >= cols) continue
+          if (mask && !mask[tr]?.[tc]) continue
+          const src = cells[dr]?.[dc]
+          if (src && src.anchorR === originR + dr && src.anchorC === originC + dc) {
+            const tile = TILE_TYPES[src.tile.typeIndex]
+            const placed = src.tile
+            for (let tdr = 0; tdr < tile.h; tdr++) {
+              for (let tdc = 0; tdc < tile.w; tdc++) {
+                const fr = tr + tdr, fc = tc + tdc
+                if (fr >= 0 && fr < rows && fc >= 0 && fc < cols) {
+                  next[fr][fc] = { tile: placed, anchorR: tr, anchorC: tc }
+                }
+              }
+            }
+          } else if (!src) {
+            next[tr][tc] = null
+          }
+        }
+      }
+      return next
+    })
+    setPasteMode(false)
+    setPastePos(null)
+  }, [copiedStamp, rows, cols, mask, setGrid])
+
   const btnBase: React.CSSProperties = { padding: '5px 4px', fontSize: 11, background: '#f4f4f4', border: '1px solid #e8e8e8', borderRadius: 4, cursor: 'pointer', color: '#333' }
   const btnActive: React.CSSProperties = { ...btnBase, background: '#111', color: 'white', border: '1px solid #111' }
 
@@ -639,23 +816,13 @@ export function App() {
           <div style={{ fontSize: 15, fontWeight: 700, color: '#111', marginBottom: 1 }}>Tile Visualizer</div>
           <div style={{ fontSize: 10, color: '#999', marginBottom: 8 }}>Kat+Roger 6×6 Arc · Pratt &amp; Larson</div>
           <div style={{ fontSize: 9, color: '#aaa', lineHeight: 1.5 }}>
-            Left-click to place tiles, right-click to rotate arcs. Shift+drag to select a region, then repeat it in any direction.
+            Left-click or drag to paint tiles, right-click to rotate arcs. Shift+drag to select, then repeat or copy/paste.
           </div>
           <div style={{ fontSize: 9, color: '#ccc', marginTop: 6 }}>Made with ❤️ for Maryna</div>
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '14px 18px' }}>
-          {/* Layout */}
-          <div style={{ marginBottom: 18 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.7px', color: '#666', marginBottom: 7 }}>Layout</div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              {(['staircase', 'grid'] as const).map(k => (
-                <button key={k} onClick={() => switchLayout(k)} style={layoutKey === k ? { ...btnActive, flex: 1, padding: '6px 0' } : { ...btnBase, flex: 1, padding: '6px 0' }}>
-                  {LAYOUTS[k].label}
-                </button>
-              ))}
-            </div>
-          </div>
+
 
           {/* Tile picker */}
           <TileTypePicker selected={selectedType} onSelect={setSelectedType} />
@@ -665,9 +832,13 @@ export function App() {
           {/* Stamp & Fill */}
           <div style={{ marginBottom: 18 }}>
             <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.7px', color: '#666', marginBottom: 7 }}>Stamp &amp; Fill</div>
-            {!selection ? (
+            {pasteMode ? (
+              <div style={{ fontSize: 10, color: '#c87020', lineHeight: 1.5, fontWeight: 600 }}>
+                Click grid to paste · Esc to cancel
+              </div>
+            ) : !selection ? (
               <div style={{ fontSize: 10, color: '#888', lineHeight: 1.5 }}>
-                <strong>Shift+drag</strong> on the grid to select, then repeat.
+                <strong>Shift+drag</strong> to select, then repeat or copy.
               </div>
             ) : (
               <>
@@ -680,9 +851,18 @@ export function App() {
                   <button onClick={() => repeatSelection('up')} style={btnBase}>↑ Up</button>
                   <button onClick={() => repeatSelection('down')} style={btnBase}>↓ Down</button>
                   <button onClick={repeatAll} style={{ ...btnBase, gridColumn: '1 / -1', fontWeight: 600 }}>Fill All</button>
+                  <button onClick={() => {
+                    const stamp = captureStamp()
+                    if (stamp) setCopiedStamp({ cells: stamp, w: selection.c2 - selection.c1 + 1, h: selection.r2 - selection.r1 + 1, originR: selection.r1, originC: selection.c1 })
+                  }} style={{ ...btnBase, gridColumn: '1 / -1' }}>Copy (⌘C)</button>
                   <button onClick={() => setSelection(null)} style={{ ...btnBase, gridColumn: '1 / -1', color: '#999' }}>Clear</button>
                 </div>
               </>
+            )}
+            {copiedStamp && !pasteMode && (
+              <button onClick={() => { setPasteMode(true); setPastePos(null) }} style={{ ...btnBase, marginTop: 6, width: '100%', fontWeight: 600, color: '#c87020', borderColor: '#c87020' }}>
+                Paste (⌘V)
+              </button>
             )}
           </div>
 
@@ -696,19 +876,100 @@ export function App() {
             </div>
           </div>
 
-          {/* Size controls */}
+          {/* Room dimensions (room mode only) */}
+          {isRoom && (
+            <div style={{ marginBottom: 14, padding: '8px 10px', background: '#f8f8f8', borderRadius: 6, border: '1px solid #e8e8e8' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.7px', color: '#666', marginBottom: 6 }}>Room Dimensions</div>
+              <div style={{ fontSize: 10, color: '#444', lineHeight: 1.8 }}>
+                <div>Floor: 8′-5″ × 4′-7″ (101″ × 55″)</div>
+                <div>Notch: 3′-6 3/8″ × 1′-10″</div>
+                <div style={{ color: '#888', marginTop: 3 }}>
+                  <span style={{ display: 'inline-block', width: 8, height: 8, background: 'url(#obstacle-hatch)', border: '1px solid #aaa', marginRight: 4 }} />
+                  Shelves: left ~10.6″ · Radiator: right ~18.4″
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Zoom / Grout controls */}
           <div style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.7px', color: '#666', marginBottom: 4 }}>Tile Size: {tileSize}px</div>
-            <input type="range" min={28} max={90} value={tileSize} onChange={e => setTileSize(Number(e.target.value))} style={{ width: '100%', accentColor: '#111' }} />
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.7px', color: '#666', marginBottom: 4 }}>
+              Zoom: {pxPerIn.toFixed(1)} px/in
+            </div>
+            <input type="range" min={5} max={25} step={0.5} value={pxPerIn}
+              onChange={e => setPxPerIn(Number(e.target.value))}
+              style={{ width: '100%', accentColor: '#111' }} />
           </div>
           <div style={{ marginBottom: 18 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.7px', color: '#666', marginBottom: 4 }}>Grout: {groutWidth}px</div>
-            <input type="range" min={1} max={10} value={groutWidth} onChange={e => setGroutWidth(Number(e.target.value))} style={{ width: '100%', accentColor: '#111' }} />
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.7px', color: '#666', marginBottom: 4 }}>
+              Grout: {fmtGrout(groutInches)} = {groutInches.toFixed(4)}″
+            </div>
+            <input type="range" min={1/32} max={0.5} step={1/32} value={groutInches}
+              onChange={e => setGroutInches(Number(e.target.value))}
+              style={{ width: '100%', accentColor: '#111', marginBottom: 4 }} />
+            <input
+              type="text"
+              placeholder='e.g. 3/16 or 0.1875'
+              defaultValue={fmtGrout(groutInches).replace('″', '')}
+              key={groutInches}
+              onBlur={e => {
+                const v = parseFraction(e.target.value)
+                if (v !== null && v > 0 && v <= 0.5) setGroutInches(v)
+                else e.target.value = fmtGrout(groutInches).replace('″', '')
+              }}
+              onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+              style={{ width: '100%', padding: '4px 7px', fontSize: 11, border: '1px solid #e0e0e0', borderRadius: 4, boxSizing: 'border-box', outline: 'none', fontFamily: 'system-ui' }}
+            />
           </div>
 
           <SavedDesigns onLoad={loadDesign} currentHash={currentHash} />
 
           <DesignLibrary onLoad={loadDesign} />
+
+          {/* Crop toggle */}
+          <button
+            onClick={() => setShowCrop(c => !c)}
+            style={showCrop ? { ...btnBase, width: '100%', padding: '7px 0', marginBottom: 6 } : { ...btnBase, width: '100%', padding: '7px 0', marginBottom: 6, background: '#fff3cd', border: '1px solid #e6c84a', color: '#7a5c00' }}
+          >
+            {showCrop ? '⬜ Crop: On' : '🔲 Crop: Off — showing full grid'}
+          </button>
+
+          {/* Furniture toggle */}
+          {isRoom && (
+            <button
+              onClick={() => setShowFurniture(f => !f)}
+              style={showFurniture ? { ...btnBase, width: '100%', padding: '7px 0', marginBottom: 6 } : { ...btnBase, width: '100%', padding: '7px 0', marginBottom: 6, background: '#f0f8f0', border: '1px solid #5a9a5a', color: '#2a5c2a' }}
+            >
+              {showFurniture ? '🪑 Furniture: On' : '🪑 Furniture: Off'}
+            </button>
+          )}
+
+          {/* Measure tool */}
+          {isRoom && (
+            <div style={{ marginBottom: 10 }}>
+              <button
+                onClick={() => { setMeasuring(m => !m); measureARef.current = null; setMeasureLine(null); setMeasureLive(null) }}
+                style={measuring ? { ...btnBase, width: '100%', padding: '7px 0', background: '#1a6ef5', color: 'white', border: '1px solid #1a6ef5', fontWeight: 600 } : { ...btnBase, width: '100%', padding: '7px 0' }}
+              >
+                📏 {measuring ? 'Click start · click end · Esc to exit' : 'Measure'}
+              </button>
+              {(() => {
+                const line = measureLine ?? measureLive
+                if (!line) return null
+                const dx = (line.b.x - line.a.x) / pxPerIn
+                const dy = (line.b.y - line.a.y) / pxPerIn
+                const dist = Math.sqrt(dx * dx + dy * dy)
+                return (
+                  <div style={{ fontSize: 11, color: '#1a6ef5', marginTop: 5, fontWeight: 600 }}>
+                    {dist.toFixed(3)}″ ({(dist / 12).toFixed(3)}′)
+                    <span style={{ color: '#888', fontWeight: 400, marginLeft: 6 }}>
+                      Δx {Math.abs(dx).toFixed(3)}″  Δy {Math.abs(dy).toFixed(3)}″
+                    </span>
+                  </div>
+                )
+              })()}
+            </div>
+          )}
 
           <div style={{ display: 'flex', gap: 4, marginBottom: 6 }}>
             <button onClick={undo} style={{ ...btnBase, flex: 1, padding: '6px 0' }}>↩ Undo</button>
@@ -725,60 +986,247 @@ export function App() {
       <div style={{ flex: 1, overflow: 'auto', background: '#f0f0f0', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: 40 }}
         onContextMenu={e => e.preventDefault()}>
         <svg id="canvas" ref={svgRef} width={svgWidth} height={svgHeight}
-          style={{ background: groutColor, boxShadow: '0 2px 16px rgba(0,0,0,0.10)', display: 'block' }}
+          style={{ background: 'white', boxShadow: '0 2px 16px rgba(0,0,0,0.10)', display: 'block', cursor: pasteMode ? 'crosshair' : undefined }}
           xmlns="http://www.w3.org/2000/svg"
           onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp} onMouseLeave={onMouseUp}>
 
-          {/* Click targets for all cells (including empty ones) + mask whitout */}
-          {Array.from({ length: rows }, (_, r) =>
-            Array.from({ length: cols }, (_, c) => {
-              if (mask && !mask[r]?.[c]) return <rect key={`bg${r}-${c}`} x={c * halfPitch} y={r * halfPitch} width={halfPitch} height={halfPitch} fill="white" />
+          <defs>
+            {isRoom && (() => {
+              // Room polygon: clean L-shape (no step detail at notch corner)
+              const pts = [
+                [0,           0        ],
+                [ROOM.notchX, 0        ],
+                [ROOM.notchX, ROOM.notchH],
+                [ROOM.w,      ROOM.notchH],
+                [ROOM.w,      ROOM.h   ],
+                [0,           ROOM.h   ],
+              ].map(([x, y]) => `${(x * pxPerIn).toFixed(1)},${(y * pxPerIn).toFixed(1)}`).join(' ')
               return (
-                <rect key={`bg${r}-${c}`} x={c * halfPitch} y={r * halfPitch} width={halfPitch} height={halfPitch}
-                  fill="transparent" cursor="pointer"
+                <>
+                  <clipPath id="room-clip">
+                    <polygon points={pts} />
+                  </clipPath>
+                  <pattern id="obstacle-hatch" x="0" y="0" width="10" height="10" patternUnits="userSpaceOnUse">
+                    <line x1="0" y1="10" x2="10" y2="0" stroke="#999" strokeWidth="1.5" />
+                  </pattern>
+                </>
+              )
+            })()}
+          </defs>
+
+          {/* ── Tiles + grout, clipped to room boundary ── */}
+          <g clipPath={isRoom && showCrop ? 'url(#room-clip)' : undefined}>
+            {/* Grout background */}
+            <rect width={svgWidth + cols * halfPitch} height={svgHeight + rows * halfPitch} fill={groutColor} />
+
+            {/* Click targets for all cells */}
+            {Array.from({ length: rows }, (_, r) =>
+              Array.from({ length: cols }, (_, c) => {
+                if (!isRoom && mask && !mask[r]?.[c]) return <rect key={`bg${r}-${c}`} x={c * halfPitch} y={r * halfPitch} width={halfPitch} height={halfPitch} fill="white" />
+                return (
+                  <rect key={`bg${r}-${c}`} x={c * halfPitch} y={r * halfPitch} width={halfPitch} height={halfPitch}
+                    fill="transparent" cursor="pointer"
+                    onClick={e => { if (e.shiftKey) return; handleClick(r, c) }}
+                    onContextMenu={e => { e.preventDefault(); handleRotate(r, c) }}
+                  />
+                )
+              })
+            )}
+
+            {/* Render tiles at anchors */}
+            {anchors.map(({ r, c, cell }) => {
+              if (!isRoom && mask && !mask[r]?.[c]) return null
+              const tile = TILE_TYPES[cell.tile.typeIndex]
+              const tw = tile.w * halfPitch - groutPx
+              const th = tile.h * halfPitch - groutPx
+              const px = c * halfPitch + groutPx
+              const py = r * halfPitch + groutPx
+              return (
+                <g key={`${r}-${c}`}
                   onClick={e => { if (e.shiftKey) return; handleClick(r, c) }}
                   onContextMenu={e => { e.preventDefault(); handleRotate(r, c) }}
-                />
-              )
-            })
-          )}
-
-          {/* Render tiles at anchors */}
-          {anchors.map(({ r, c, cell }) => {
-            if (mask && !mask[r]?.[c]) return null
-            const tile = TILE_TYPES[cell.tile.typeIndex]
-            const tw = tile.w * halfPitch - groutWidth
-            const th = tile.h * halfPitch - groutWidth
-            const px = c * halfPitch + groutWidth
-            const py = r * halfPitch + groutWidth
-            return (
-              <g key={`${r}-${c}`}
-                onClick={e => { if (e.shiftKey) return; handleClick(r, c) }}
-                onContextMenu={e => { e.preventDefault(); handleRotate(r, c) }}
-                style={{ cursor: 'pointer' }}>
-                {tile.image ? (
-                  <g transform={`translate(${px},${py})`}>
-                    <g transform={`rotate(${imgRot(cell.tile.rotation)},${tw / 2},${th / 2})`}>
-                      <image href={`${import.meta.env.BASE_URL}tiles/${tile.image}`} width={tw} height={th} />
+                  style={{ cursor: 'pointer' }}>
+                  {tile.image ? (
+                    <g transform={`translate(${px},${py})`}>
+                      <g transform={`rotate(${imgRot(cell.tile.rotation)},${tw / 2},${th / 2})`}>
+                        <image href={`${import.meta.env.BASE_URL}tiles/${tile.image}`} width={tw} height={th} />
+                      </g>
                     </g>
-                  </g>
-                ) : tile.bgImage ? (
-                  <image href={`${import.meta.env.BASE_URL}tiles/${tile.bgImage}`} x={px} y={py} width={tw} height={th} preserveAspectRatio="xMidYMid slice" />
-                ) : (
-                  <rect x={px} y={py} width={tw} height={th} fill={tile.background} />
-                )}
-              </g>
-            )
-          })}
+                  ) : tile.bgImage ? (
+                    <image href={`${import.meta.env.BASE_URL}tiles/${tile.bgImage}`} x={px} y={py} width={tw} height={th} preserveAspectRatio="xMidYMid slice" />
+                  ) : (
+                    <rect x={px} y={py} width={tw} height={th} fill={tile.background} />
+                  )}
+                </g>
+              )
+            })}
+          </g>
+
+          {/* ── Room outline ── */}
+          {isRoom && (() => {
+            const pts = [
+              [0,           0        ],
+              [ROOM.notchX, 0        ],
+              [ROOM.notchX, ROOM.notchH],
+              [ROOM.w,      ROOM.notchH],
+              [ROOM.w,      ROOM.h   ],
+              [0,           ROOM.h   ],
+            ].map(([x, y]) => `${(x * pxPerIn).toFixed(1)},${(y * pxPerIn).toFixed(1)}`).join(' ')
+            return <polygon points={pts} fill="none" stroke="#555" strokeWidth={2} pointerEvents="none" />
+          })()}
+
+          {/* ── Obstacle overlays (shelves + radiator) ── */}
+          {isRoom && showFurniture && (
+            <g clipPath="url(#room-clip)" pointerEvents="all">
+              {/* Shelves — left column, partial height */}
+              {[0, 1].map(i => (
+                <rect key={`shelf-${i}`}
+                  x={0}
+                  y={(ROOM.shelfY1 * pxPerIn).toFixed(1)}
+                  width={(ROOM.shelfW * pxPerIn).toFixed(1)}
+                  height={((ROOM.shelfY2 - ROOM.shelfY1) * pxPerIn).toFixed(1)}
+                  fill={i === 0 ? '#c8c8c4' : 'url(#obstacle-hatch)'}
+                  opacity={i === 0 ? 0.8 : 0.4}
+                  style={{ cursor: 'not-allowed' }}
+                />
+              ))}
+              {/* Radiator — right side strip */}
+              {[0, 1].map(i => (
+                <rect key={`rad-${i}`}
+                  x={(ROOM.radX * pxPerIn).toFixed(1)}
+                  y={(ROOM.radY * pxPerIn).toFixed(1)}
+                  width={((ROOM.w - ROOM.radX) * pxPerIn).toFixed(1)}
+                  height={(ROOM.radH * pxPerIn).toFixed(1)}
+                  fill={i === 0 ? '#c8c8c4' : 'url(#obstacle-hatch)'}
+                  opacity={i === 0 ? 0.8 : 0.4}
+                  style={{ cursor: 'not-allowed' }}
+                />
+              ))}
+              {/* Labels */}
+              <text
+                x={(ROOM.shelfW / 2 * pxPerIn).toFixed(1)}
+                y={((ROOM.shelfY1 + ROOM.shelfY2) / 2 * pxPerIn).toFixed(1)}
+                textAnchor="middle" dominantBaseline="middle"
+                fontSize={Math.max(8, pxPerIn * 1.2).toFixed(0)} fill="#555" fontFamily="system-ui"
+                transform={`rotate(-90, ${(ROOM.shelfW / 2 * pxPerIn).toFixed(1)}, ${((ROOM.shelfY1 + ROOM.shelfY2) / 2 * pxPerIn).toFixed(1)})`}
+                pointerEvents="none"
+              >shelves</text>
+              <text
+                x={((ROOM.radX + (ROOM.w - ROOM.radX) / 2) * pxPerIn).toFixed(1)}
+                y={((ROOM.radY + ROOM.radH / 2) * pxPerIn).toFixed(1)}
+                textAnchor="middle" dominantBaseline="middle"
+                fontSize={Math.max(8, pxPerIn * 1.2).toFixed(0)} fill="#555" fontFamily="system-ui"
+                pointerEvents="none"
+              >rad</text>
+            </g>
+          )}
 
           {/* Selection overlay */}
           {selection && (
             <rect
-              x={selection.c1 * halfPitch + groutWidth / 2}
-              y={selection.r1 * halfPitch + groutWidth / 2}
+              x={selection.c1 * halfPitch + groutPx / 2}
+              y={selection.r1 * halfPitch + groutPx / 2}
               width={(selection.c2 - selection.c1 + 1) * halfPitch}
               height={(selection.r2 - selection.r1 + 1) * halfPitch}
               fill="none" stroke="#2080ff" strokeWidth={2} strokeDasharray="6 3" pointerEvents="none"
+            />
+          )}
+
+          {/* ── Measure overlay — full-canvas rect on top, active only when measuring ── */}
+          {measuring && (
+            <g>
+              <rect x={0} y={0} width={svgWidth + cols * halfPitch} height={svgHeight + rows * halfPitch}
+                fill="transparent" style={{ cursor: 'crosshair' }}
+                onClick={e => {
+                  const rect = svgRef.current!.getBoundingClientRect()
+                  const pt = { x: e.clientX - rect.left, y: e.clientY - rect.top }
+                  if (!measureARef.current) {
+                    measureARef.current = pt
+                    setMeasureLive(null)
+                    setMeasureLine(null)
+                  } else {
+                    setMeasureLine({ a: measureARef.current, b: pt })
+                    setMeasureLive(null)
+                    measureARef.current = null
+                  }
+                }}
+                onMouseMove={e => {
+                  if (!measureARef.current) return
+                  const rect = svgRef.current!.getBoundingClientRect()
+                  const pt = { x: e.clientX - rect.left, y: e.clientY - rect.top }
+                  setMeasureLive({ a: measureARef.current, b: pt })
+                }}
+              />
+              {/* Draw finalized line or live preview */}
+              {(measureLine ?? measureLive) && (() => {
+                const line = measureLine ?? measureLive!
+                const dx = line.b.x - line.a.x, dy = line.b.y - line.a.y
+                const dist = Math.sqrt(dx * dx + dy * dy) / pxPerIn
+                const mx = (line.a.x + line.b.x) / 2, my = (line.a.y + line.b.y) / 2
+                const angle = Math.atan2(dy, dx) * 180 / Math.PI
+                const labelAngle = Math.abs(angle) > 90 ? angle + 180 : angle
+                return (
+                  <g pointerEvents="none">
+                    <line x1={line.a.x} y1={line.a.y} x2={line.b.x} y2={line.b.y}
+                      stroke="#1a6ef5" strokeWidth={2} strokeDasharray={measureLine ? '0' : '5 3'} />
+                    <circle cx={line.a.x} cy={line.a.y} r={4} fill="#1a6ef5" />
+                    <circle cx={line.b.x} cy={line.b.y} r={4} fill="#1a6ef5" />
+                    <g transform={`translate(${mx},${my}) rotate(${labelAngle})`}>
+                      <rect x={-40} y={-11} width={80} height={16} rx={3} fill="white" opacity={0.92} />
+                      <text x={0} y={3} textAnchor="middle" fontSize={10} fontWeight={700} fill="#1a6ef5" fontFamily="system-ui">
+                        {dist.toFixed(3)}″
+                      </text>
+                    </g>
+                  </g>
+                )
+              })()}
+            </g>
+          )}
+
+          {/* Paste preview (ghost) */}
+          {pasteMode && pastePos && copiedStamp && (
+            <g opacity={0.7} pointerEvents="none">
+              {copiedStamp.cells.flatMap((row, dr) =>
+                row.map((cell, dc) => {
+                  if (!cell || cell.anchorR !== copiedStamp.originR + dr || cell.anchorC !== copiedStamp.originC + dc) return null
+                  const tile = TILE_TYPES[cell.tile.typeIndex]
+                  const pr = pastePos.r + dr, pc = pastePos.c + dc
+                  if (pr < 0 || pr >= rows || pc < 0 || pc >= cols) return null
+                  const tw = tile.w * halfPitch - groutPx
+                  const th = tile.h * halfPitch - groutPx
+                  const px = pc * halfPitch + groutPx
+                  const py = pr * halfPitch + groutPx
+                  return (
+                    <g key={`pp-${dr}-${dc}`}>
+                      {tile.image ? (
+                        <g transform={`translate(${px},${py})`}>
+                          <g transform={`rotate(${imgRot(cell.tile.rotation)},${tw / 2},${th / 2})`}>
+                            <image href={`${import.meta.env.BASE_URL}tiles/${tile.image}`} width={tw} height={th} />
+                          </g>
+                        </g>
+                      ) : tile.bgImage ? (
+                        <image href={`${import.meta.env.BASE_URL}tiles/${tile.bgImage}`} x={px} y={py} width={tw} height={th} preserveAspectRatio="xMidYMid slice" />
+                      ) : (
+                        <rect x={px} y={py} width={tw} height={th} fill={tile.background} />
+                      )}
+                    </g>
+                  )
+                })
+              )}
+              <rect
+                x={pastePos.c * halfPitch + groutPx / 2}
+                y={pastePos.r * halfPitch + groutPx / 2}
+                width={copiedStamp.w * halfPitch}
+                height={copiedStamp.h * halfPitch}
+                fill="none" stroke="#ff8020" strokeWidth={2} strokeDasharray="6 3"
+              />
+            </g>
+          )}
+          {/* Paste click overlay — sits on top of tiles, captures click to place */}
+          {pasteMode && (
+            <rect x={0} y={0} width={svgWidth} height={svgHeight} fill="transparent" pointerEvents="all"
+              style={{ cursor: 'crosshair' }}
+              onClick={() => { if (pastePos && copiedStamp) pasteStamp(pastePos.r, pastePos.c) }}
             />
           )}
         </svg>
